@@ -68,7 +68,7 @@ START_DATE_ANALYSIS = '1800-01-01'
 
 # NEW: Define the name of the column containing the price data for the asset/portfolio.
 # If you change your CSV column name, update this variable.
-ASSET_PRICE_COLUMN_NAME = "Vcodio's Excellent Adventure"
+ASSET_PRICE_COLUMN_NAME = "Geo Port"
 
 # We set the random_state on the HMM model explicitly for stability.
 np.random.seed(RANDOM_SEED)
@@ -115,7 +115,7 @@ def calculate_max_drawdown(daily_log_returns_series):
 console.print("\n--- 2. Loading and Preprocessing Historical Data ---", style="bold")
 
 # --- ACTUAL DATA LOADING (Highly Robustified for Delimited and FWF) ---
-file_path = "data/VCEA - Block Bootstrap.csv"
+file_path = "data/GeoPort.csv"
 df = None
 loaded = False
 
