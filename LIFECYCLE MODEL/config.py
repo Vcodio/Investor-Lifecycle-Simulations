@@ -12,6 +12,7 @@ class SimulationConfig:
         self.initial_portfolio = 100_000
         self.annual_income_real = 50_000
         self.spending_real = 50_000
+        self.savings_rate = 0.25  # Savings rate during accumulation phase (fraction of income)
         self.social_security_real = 25_000.0
         self.social_security_start_age = 67
         self.include_social_security = False
@@ -21,21 +22,18 @@ class SimulationConfig:
         # - num_nested: number of retirement-phase re-simulations per candidate
         #   retirement age when checking success rates.
         # Larger values improve stability of estimates at the cost of runtime.
-        self.num_outer = 10000
-        self.num_nested = 500
-        self.success_target = 0.95
-        self.generate_csv_summary = False
-        self.num_sims_to_export = 50
-        self.seed = None
-        self.num_workers = max(1, mp.cpu_count() - 1)
-        self.output_directory = 'Lifecycle Outputs'
-        self.use_principal_deviation_threshold = True
+        self.num_outer = 10 # number of full lifecycle paths (outer simulations)
+        self.num_nested = 50 # number of retirement-phase re-simulations per candidate retirement age when checking success rates.
+        self.success_target = 0.95 # target success rate for retirement age candidates
+        self.generate_csv_summary = False # toggle to generate a CSV summary of the simulation results
+        self.num_sims_to_export = 50 # number of simulations to export to a CSV file
+        self.seed = None # random seed for the simulation   
+        self.num_workers = max(1, mp.cpu_count() - 1) # number of workers for parallel simulations
+        self.output_directory = 'Lifecycle Outputs' # directory to save the simulation results
+        self.use_principal_deviation_threshold = True # toggle to use a principal deviation threshold to determine if a simulation is successful
         self.principal_deviation_threshold = 0.07  # 7% deviation threshold (as fraction)
-        
-        # Retirement age range for binary search (inclusive)
         self.retirement_age_min = 30  # Must be >= initial_age
         self.retirement_age_max = 70
-        
         # Block bootstrap configuration (historical returns + inflation from CSV)
         self.use_block_bootstrap = True
         self.bootstrap_csv_path = 'data/TFP - Block Bootstrap.csv'
@@ -90,6 +88,7 @@ class SimulationConfig:
         self.use_amortization = True  # Toggle between fixed real spending and amortization-based withdrawal
         self.amortization_expected_return = 0.06  # Expected real return for amortization calculation (None = auto-calculate from historical/model)
         self.amortization_min_spending_threshold = 0.5  # Minimum spending as fraction of initial spending (for statistics)
+        self.amortization_desired_bequest = 0.0  # Desired bequest amount (real $) at death. If 0, portfolio is consumed to zero.
 
     def validate(self):
         """Validate configuration parameters"""

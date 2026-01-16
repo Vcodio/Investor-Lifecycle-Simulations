@@ -7,7 +7,28 @@ using the modular components.
 
 import numpy as np
 import logging
-from tqdm import tqdm
+# Check if running in Streamlit and disable tqdm if so
+try:
+    import streamlit as st
+    _IN_STREAMLIT = True
+    # Create a no-op tqdm for Streamlit that works as both function and context manager
+    class _NoOpTqdm:
+        def __init__(self, iterable=None, *args, **kwargs):
+            self.iterable = iterable if iterable is not None else []
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+        def __iter__(self):
+            return iter(self.iterable) if self.iterable else iter([])
+        def update(self, *args):
+            pass
+        def close(self):
+            pass
+    tqdm = _NoOpTqdm
+except ImportError:
+    _IN_STREAMLIT = False
+    from tqdm import tqdm
 
 from .config import SimulationConfig
 from .bootstrap import load_bootstrap_data
@@ -50,11 +71,31 @@ def build_required_principal_table(config, params, bootstrap_data=None):
         config.mean_inflation_geometric, config.std_inflation)
 
     previous_principal = None
+    # #region agent log
+    import time
+    t_table_start = time.perf_counter()
+    # #endregion
     for age in tqdm(target_ages, desc="Calculating required principal per age"):
+        # #region agent log
+        t_age_start = time.perf_counter()
+        # #endregion
         principal = find_required_principal(age, config.success_target,
                                            config.num_nested, config, params,
                                            warm_start_principal=previous_principal,
                                            bootstrap_data=bootstrap_data)
+        # #region agent log
+        t_age_end = time.perf_counter()
+        if age == target_ages[0] or age == target_ages[len(target_ages)//2]:
+            try:
+                import json
+                import os
+                log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+                os.makedirs(log_dir, exist_ok=True)
+                log_path = os.path.join(log_dir, 'debug.log')
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'id': 'log_find_principal_time', 'timestamp': time.time() * 1000, 'location': 'main.py:54', 'message': 'find_required_principal timing', 'data': {'duration_ms': (t_age_end - t_age_start) * 1000, 'age': age}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+            except: pass
+        # #endregion
         
         if config.use_principal_deviation_threshold and previous_principal is not None:
             max_change = previous_principal * config.principal_deviation_threshold
@@ -307,6 +348,19 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
 
 def main():
     """Main execution function - run this to start the simulation"""
+    # #region agent log
+    import time
+    t_main_start = time.perf_counter()
+    try:
+        import json
+        import os
+        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'debug.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({'id': 'log_main_start', 'timestamp': time.time() * 1000, 'location': 'main.py:330', 'message': 'main() function entry', 'data': {}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+    except Exception as log_err: pass
+    # #endregion
     print("\n" + "="*70)
     print("MODULAR LIFECYCLE RETIREMENT SIMULATION v7.0")
     print("="*70)
@@ -322,9 +376,58 @@ def main():
 
     print("="*70 + "\n")
 
+    # #region agent log
     try:
+        import json
+        import time
+        import os
+        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'debug.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({'id': 'log_before_try', 'timestamp': time.time() * 1000, 'location': 'main.py:337', 'message': 'Before try block in main()', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'E'}) + '\n')
+    except Exception as log_err: pass
+    # #endregion
+
+    try:
+        # #region agent log
+        try:
+            import json
+            import time
+            import os
+            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, 'debug.log')
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'id': 'log_config_init', 'timestamp': time.time() * 1000, 'location': 'main.py:338', 'message': 'Creating SimulationConfig', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
+        except Exception as log_err: pass
+        # #endregion
         config = SimulationConfig()
+        # #region agent log
+        try:
+            import json
+            import time
+            import os
+            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, 'debug.log')
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'id': 'log_config_created', 'timestamp': time.time() * 1000, 'location': 'main.py:384', 'message': 'SimulationConfig created', 'data': {'num_workers': config.num_workers, 'num_nested': config.num_nested, 'num_outer': config.num_outer}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+        except Exception as log_err: pass
+        # #endregion
         config.validate()
+        # #region agent log
+        try:
+            import json
+            import time
+            import os
+            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, 'debug.log')
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'id': 'log_config_validated', 'timestamp': time.time() * 1000, 'location': 'main.py:340', 'message': 'Config validated successfully', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
+        except Exception as log_err: pass
+        # #endregion
         params = config.params
 
         # Log block bootstrap configuration
@@ -357,8 +460,32 @@ def main():
         # Load bootstrap data once if block bootstrap is enabled
         bootstrap_data = None
         if config.use_block_bootstrap:
+            # #region agent log
+            try:
+                import json
+                import time
+                import os
+                log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+                os.makedirs(log_dir, exist_ok=True)
+                log_path = os.path.join(log_dir, 'debug.log')
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'id': 'log_bootstrap_start', 'timestamp': time.time() * 1000, 'location': 'main.py:372', 'message': 'Loading bootstrap data', 'data': {'csv_path': config.bootstrap_csv_path}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+            except Exception as log_err: pass
+            # #endregion
             print("[INFO] Loading bootstrap data from CSV (one-time operation)...")
             bootstrap_data = load_bootstrap_data(config)
+            # #region agent log
+            try:
+                import json
+                import time
+                import os
+                log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+                os.makedirs(log_dir, exist_ok=True)
+                log_path = os.path.join(log_dir, 'debug.log')
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps({'id': 'log_bootstrap_done', 'timestamp': time.time() * 1000, 'location': 'main.py:374', 'message': 'Bootstrap data loaded', 'data': {'success': bootstrap_data is not None, 'data_length': len(bootstrap_data[0]) if bootstrap_data else 0}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+            except Exception as log_err: pass
+            # #endregion
             if bootstrap_data is None:
                 logger.warning("Failed to load bootstrap data, falling back to parametric model")
                 config.use_block_bootstrap = False
@@ -556,6 +683,30 @@ def main():
         logger.error(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
+        # #region agent log
+        try:
+            import json
+            import time
+            import os
+            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, 'debug.log')
+            with open(log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'id': 'log_main_error', 'timestamp': time.time() * 1000, 'location': 'main.py:555', 'message': 'Exception in main()', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'D'}) + '\n')
+        except Exception as log_err: pass
+        # #endregion
+    # #region agent log
+    t_main_end = time.perf_counter()
+    try:
+        import json
+        import os
+        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'debug.log')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps({'id': 'log_main_total_time', 'timestamp': time.time() * 1000, 'location': 'main.py:677', 'message': 'main() total execution time', 'data': {'duration_ms': (t_main_end - t_main_start) * 1000}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+    except: pass
+    # #endregion
 
 
 if __name__ == "__main__":
