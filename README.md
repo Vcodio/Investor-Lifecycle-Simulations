@@ -1,4 +1,4 @@
-# Lifecycle-Retirement-Simulation
+# Investor Lifecycle Simulations
 
 **Version 7** - Cythonized with Block Bootstrap Support
 
@@ -100,4 +100,5 @@ This change will require major overhauls on how we measure "success", and how we
 13. Adding inflation indexed bond
 14. Adding Glide path. Perhaps contingent on how far investor is from our estimated "FI/RE" number.
 15. Upgrade to simulate constituent assets individually, rather than simulating the entire portfolio.
+
 
