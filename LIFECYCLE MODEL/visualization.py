@@ -32,25 +32,25 @@ def detect_bimodality(ages, bins=50):
     hist, bin_edges = np.histogram(ages, bins=bins)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     
-    # Find local maxima (potential modes)
+
     try:
         from scipy.signal import find_peaks
         peaks, properties = find_peaks(hist, height=np.max(hist) * 0.1, distance=len(hist)//10)
         
         if len(peaks) >= 2:
-            # Sort peaks by height
+
             peak_heights = hist[peaks]
             sorted_indices = np.argsort(peak_heights)[::-1]
             mode1_idx = peaks[sorted_indices[0]]
             mode2_idx = peaks[sorted_indices[1]]
             
-            # Find the dip between the two modes
+
             start_idx = min(mode1_idx, mode2_idx)
             end_idx = max(mode1_idx, mode2_idx)
             dip_idx = start_idx + np.argmin(hist[start_idx:end_idx+1])
             dip_depth = (hist[mode1_idx] + hist[mode2_idx]) / 2 - hist[dip_idx]
             
-            # Check if dip is significant (at least 20% of average peak height)
+
             avg_peak_height = (hist[mode1_idx] + hist[mode2_idx]) / 2
             is_bimodal = dip_depth > avg_peak_height * 0.2
             
@@ -62,7 +62,7 @@ def detect_bimodality(ages, bins=50):
                 'dip_location': bin_centers[dip_idx]
             }
     except (ImportError, Exception):
-        # Fallback if scipy not available or error occurs
+
         pass
     
     return {'is_bimodal': False, 'mode1': None, 'mode2': None, 
@@ -166,23 +166,23 @@ def plot_retirement_age_distribution(valid_ages, median_age, output_dir='output'
     if not HAS_MATPLOTLIB or valid_ages.size == 0:
         return
 
-    # Round retirement ages to integers since retirement decisions are only made at whole number intervals
-    # This ensures bins align with actual retirement ages and eliminates gaps from fractional values
+
+
     valid_ages_int = np.round(valid_ages).astype(int)
     
-    # Bimodal detection disabled per user request
-    # bimodal_info = detect_bimodality(valid_ages_int, bins=50)
+
+
     
     plt.figure(figsize=(12, 7))
-    # Create histogram with integer bins - bars will touch when data is at integer values
-    # Use bins that align with integer ages (from min to max age, one bin per integer)
+
+
     min_age = int(np.min(valid_ages_int))
-    max_age = int(np.max(valid_ages_int)) + 1  # +1 to include the max age
+    max_age = int(np.max(valid_ages_int)) + 1
     n, bins, patches = plt.hist(valid_ages_int, bins=range(min_age, max_age + 1), 
                                  color='cyan', alpha=0.7, align='left', 
                                  edgecolor='cyan', linewidth=0)
     
-    # Double-check: explicitly set edges to match fill color with zero linewidth
+
     for patch in patches:
         patch.set_edgecolor(patch.get_facecolor())
         patch.set_linewidth(0)
@@ -202,13 +202,13 @@ def plot_retirement_age_distribution(valid_ages, median_age, output_dir='output'
     plt.show()
     plt.close()
     
-    # Bimodal detection disabled per user request
-    # if bimodal_info['is_bimodal']:
-    #     logger.warning(
-    #         f"BIMODAL DISTRIBUTION DETECTED: Mode 1 at {bimodal_info['mode1']:.1f}, "
-    #         f"Mode 2 at {bimodal_info['mode2']:.1f}. "
-    #         f"The apparent single centerline may be an artifact of averaging two distinct regimes."
-    #     )
+
+
+
+
+
+
+
 
 
 def plot_cumulative_retirement_probability(retirement_ages, config, median_age, num_outer):
@@ -265,7 +265,7 @@ def plot_certainty_equivalent_distribution(certainty_equivalents_annual, output_
     plt.ylabel('Frequency (log scale)', color='white', fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.5)
     
-    # Add statistics
+
     mean_ce = np.mean(certainty_equivalents_annual)
     median_ce = np.median(certainty_equivalents_annual)
     plt.axvline(mean_ce, color='yellow', linestyle='--', linewidth=2, label=f'Mean: ${mean_ce:,.0f}')
@@ -285,30 +285,30 @@ def plot_utility_distribution(utilities, output_dir):
     if not HAS_MATPLOTLIB:
         return
     
-    # Handle single value (EX-ANTE approach returns single utility value)
+
     if utilities is None or len(utilities) == 0:
         return
     
-    # Filter out invalid values
+
     valid_utilities = [u for u in utilities if np.isfinite(u) and not np.isnan(u)]
     
-    # If utilities is a single value (EX-ANTE approach) or no valid values, skip histogram
+
     if len(valid_utilities) <= 1:
-        # For EX-ANTE approach, utility is a single value across all simulations
-        # Skip histogram plot since there's no distribution to show
+
+
         return
     
-    # Need at least 2 unique values to create bins
+
     unique_values = len(set(valid_utilities))
     if unique_values < 2:
         return
     
-    # Calculate appropriate number of bins based on data range
+
     data_range = max(valid_utilities) - min(valid_utilities)
     if data_range <= 0:
         return
     
-    # Use adaptive binning - limit to reasonable number based on data
+
     n_bins = min(50, max(10, len(valid_utilities) // 10))
     
     plt.figure(figsize=(12, 7))
@@ -318,7 +318,7 @@ def plot_utility_distribution(utilities, output_dir):
     plt.ylabel('Frequency', color='white', fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.5)
     
-    # Add statistics
+
     mean_util = np.mean(valid_utilities)
     median_util = np.median(valid_utilities)
     plt.axvline(mean_util, color='yellow', linestyle='--', linewidth=2, label=f'Mean: {mean_util:.2e}')
@@ -363,7 +363,7 @@ def create_all_plots(required_principal_data, retirement_ages,
     """Create all visualization plots"""
     import os
     
-    # Create organized output directories
+
     base_dir = config.output_directory
     principal_dir = os.path.join(base_dir, 'Principal Requirements')
     retirement_dir = os.path.join(base_dir, 'Retirement Analysis')
@@ -378,7 +378,7 @@ def create_all_plots(required_principal_data, retirement_ages,
     principals_real = [row['principal_real'] for row in required_principal_data]
     swr = [row['swr'] for row in required_principal_data]
 
-    # Store original output directory and temporarily change for each plot
+
     original_output = config.output_directory
     config.output_directory = principal_dir
     plot_required_principal_nominal(ages, principals_nominal, swr, config, median_age)
@@ -389,18 +389,18 @@ def create_all_plots(required_principal_data, retirement_ages,
         plot_retirement_age_distribution(valid_ages, median_age, retirement_dir)
     plot_cumulative_retirement_probability(retirement_ages, config, median_age, num_outer)
     
-    # Utility plots
+
     if utilities is not None and len(utilities) > 0:
         plot_utility_distribution(utilities, utility_dir)
     if certainty_equivalents_annual is not None and len(certainty_equivalents_annual) > 0:
         plot_certainty_equivalent_distribution(certainty_equivalents_annual, utility_dir)
         plot_certainty_equivalent_bar(certainty_equivalents_annual, utility_dir)
     
-    # Amortization plots
+
     if amortization_stats_list is not None and config.use_amortization:
         create_amortization_plots(amortization_stats_list, config, base_dir)
     
-    # Restore original output directory
+
     config.output_directory = original_output
 
 
@@ -414,8 +414,8 @@ def plot_amortization_withdrawal_over_time(amortization_stats_list, config, outp
         logger.warning("No amortization statistics available for plotting")
         return
     
-    # Collect all withdrawals by retirement year
-    all_withdrawals_by_year = {}  # year_index -> list of withdrawals (real)
+
+    all_withdrawals_by_year = {}
     initial_spending = None
     
     for stats in amortization_stats_list:
@@ -435,7 +435,7 @@ def plot_amortization_withdrawal_over_time(amortization_stats_list, config, outp
         logger.warning("No withdrawal data found for plotting")
         return
     
-    # Calculate statistics for each year
+
     years = sorted(all_withdrawals_by_year.keys())
     medians = [np.median(all_withdrawals_by_year[y]) for y in years]
     p25 = [np.percentile(all_withdrawals_by_year[y], 25) for y in years]
@@ -445,16 +445,16 @@ def plot_amortization_withdrawal_over_time(amortization_stats_list, config, outp
     
     fig, ax = plt.subplots(figsize=(12, 7))
     
-    # Plot percentile bands
+
     ax.fill_between(years, p10, p90, alpha=0.2, color='cyan', label='10th-90th Percentile')
     ax.fill_between(years, p25, p75, alpha=0.3, color='blue', label='25th-75th Percentile')
     ax.plot(years, medians, 'o-', color='yellow', linewidth=2, markersize=6, label='Median')
     
-    # Add reference line for initial spending
+
     if initial_spending:
         ax.axhline(y=initial_spending, color='red', linestyle='--', linewidth=2, 
                   label=f'Initial Spending (${initial_spending:,.0f})')
-        # Add threshold line
+
         threshold = config.amortization_min_spending_threshold * initial_spending
         ax.axhline(y=threshold, color='orange', linestyle=':', linewidth=2,
                   label=f'Minimum Threshold ({config.amortization_min_spending_threshold*100:.0f}% = ${threshold:,.0f})')
@@ -482,12 +482,12 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
         logger.warning("No amortization statistics available for plotting")
         return
     
-    # Count how many simulations have below-threshold spending in each year
-    # Note: year_idx represents "years since retirement started", not absolute age
-    # Different simulations retire at different ages, so later years have fewer data points
+
+
+
     initial_spending = None
-    threshold_counts_by_year = {}  # year_idx (years since retirement) -> count of sims below threshold
-    total_counts_by_year = {}  # year_idx -> total sims
+    threshold_counts_by_year = {}
+    total_counts_by_year = {}
     
     total_sims = len([s for s in amortization_stats_list if s is not None and s.get('withdrawals')])
     
@@ -514,12 +514,12 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
         logger.warning("No data for below-threshold percentage plot")
         return
     
-    # Filter to years where we have sufficient data (at least 50% of simulations)
-    min_sims_threshold = max(10, total_sims * 0.5)  # At least 50% or 10 sims, whichever is higher
+
+    min_sims_threshold = max(10, total_sims * 0.5)
     years_with_sufficient_data = {y: total_counts_by_year[y] >= min_sims_threshold 
                                   for y in total_counts_by_year.keys()}
     
-    # Calculate percentages (only for years with sufficient data)
+
     years = sorted([y for y in threshold_counts_by_year.keys() if years_with_sufficient_data[y]])
     percentages = [(threshold_counts_by_year[y] / total_counts_by_year[y] * 100) 
                    if total_counts_by_year[y] > 0 else 0 for y in years]
@@ -527,13 +527,13 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
     
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), gridspec_kw={'height_ratios': [3, 1]})
     
-    # Calculate coverage info for title
+
     max_year_shown = max(years) if years else 0
     min_year_shown = min(years) if years else 0
     avg_sims_in_shown_years = np.mean(num_sims_per_year) if num_sims_per_year else 0
     coverage_pct = (avg_sims_in_shown_years / total_sims * 100) if total_sims > 0 else 0
     
-    # Main plot: Below threshold percentage
+
     ax1.bar(years, percentages, color='coral', alpha=0.7, edgecolor='red', linewidth=1.5)
     ax1.axhline(y=50, color='orange', linestyle='--', linewidth=2, label='50% Reference')
     ax1.axhline(y=25, color='yellow', linestyle='--', linewidth=2, label='25% Reference')
@@ -547,15 +547,15 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
         fontweight='bold',
     )
 
-    # Dynamic y-scale so low percentages use the vertical space better, while
-    # still ensuring the 25% and 50% reference lines remain visible.
+
+
     if percentages:
         max_pct = max(percentages)
-        # Start with 20% headroom above the max bar
+
         y_max = max_pct * 1.2
-        # Always show at least a bit above the 50% reference if present
+
         y_max = max(y_max, 55.0)
-        # Cap at 100% for readability
+
         y_max = min(y_max, 100.0)
     else:
         y_max = 100.0
@@ -563,7 +563,7 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
     ax1.legend(loc='best', fontsize=10)
     ax1.grid(True, alpha=0.3, axis='y')
     
-    # Secondary plot: Number of simulations contributing at each year
+
     ax2.bar(years, num_sims_per_year, color='gray', alpha=0.6, edgecolor='black', linewidth=0.5)
     ax2.axhline(y=min_sims_threshold, color='red', linestyle='--', linewidth=1, 
                 label=f'Threshold ({min_sims_threshold:.0f} sims, {min_sims_threshold/total_sims*100:.0f}%)')
@@ -591,10 +591,10 @@ def plot_amortization_principal_trajectory(amortization_stats_list, config, outp
         logger.warning("No amortization statistics available for plotting")
         return
     
-    # Collect all principal values by years since retirement
-    # Note: year_idx represents "years since retirement started", not absolute age
-    # Different simulations retire at different ages, so later years have fewer data points
-    all_principal_by_year = {}  # year_idx (years since retirement) -> list of principals (nominal)
+
+
+
+    all_principal_by_year = {}
     total_sims = len([s for s in amortization_stats_list if s is not None and s.get('principal_at_year_start')])
     
     for stats in amortization_stats_list:
@@ -611,12 +611,12 @@ def plot_amortization_principal_trajectory(amortization_stats_list, config, outp
         logger.warning("No principal data found for plotting")
         return
     
-    # Filter to years where we have sufficient data (at least 50% of simulations)
-    min_sims_threshold = max(10, total_sims * 0.5)  # At least 50% or 10 sims, whichever is higher
+
+    min_sims_threshold = max(10, total_sims * 0.5)
     years_with_sufficient_data = {y: len(all_principal_by_year[y]) >= min_sims_threshold 
                                    for y in all_principal_by_year.keys()}
     
-    # Calculate statistics for each year
+
     years = sorted([y for y in all_principal_by_year.keys() if years_with_sufficient_data[y]])
     medians = [np.median(all_principal_by_year[y]) for y in years]
     p25 = [np.percentile(all_principal_by_year[y], 25) for y in years]
@@ -625,7 +625,7 @@ def plot_amortization_principal_trajectory(amortization_stats_list, config, outp
     
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), gridspec_kw={'height_ratios': [3, 1]})
     
-    # Main plot: Portfolio trajectory
+
     ax1.fill_between(years, p25, p75, alpha=0.3, color='blue', label='25th-75th Percentile')
     ax1.plot(years, medians, 'o-', color='yellow', linewidth=2, markersize=4, label='Median Principal')
     
@@ -637,7 +637,7 @@ def plot_amortization_principal_trajectory(amortization_stats_list, config, outp
     ax1.grid(True, alpha=0.3)
     ax1.ticklabel_format(style='plain', axis='y')
     
-    # Secondary plot: Number of simulations contributing at each year
+
     ax2.bar(years, num_sims_per_year, color='gray', alpha=0.6, edgecolor='black', linewidth=0.5)
     ax2.axhline(y=min_sims_threshold, color='red', linestyle='--', linewidth=1, 
                 label=f'Threshold ({min_sims_threshold:.0f} sims, {min_sims_threshold/total_sims*100:.0f}%)')
@@ -665,7 +665,7 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
         logger.warning("No amortization statistics available for plotting")
         return
     
-    # Collect all withdrawals
+
     all_withdrawals = []
     initial_spending = None
     
@@ -684,7 +684,7 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
     
     all_withdrawals = np.array(all_withdrawals)
     
-    # Calculate statistics for display
+
     median_w = np.median(all_withdrawals)
     mean_w = np.mean(all_withdrawals)
     p10_w = np.percentile(all_withdrawals, 10)
@@ -694,10 +694,10 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
     
     fig = plt.figure(figsize=(16, 10))
     
-    # Create a 2x2 grid with better spacing
+
     gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.35, left=0.08, right=0.95, top=0.93, bottom=0.08)
     
-    # Top left: Histogram (linear scale)
+
     ax1 = fig.add_subplot(gs[0, 0])
     n_bins = min(80, len(np.unique(all_withdrawals)))
     counts, bins, patches = ax1.hist(all_withdrawals, bins=n_bins, color='skyblue', edgecolor='none', alpha=0.7)
@@ -716,7 +716,7 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
     ax1.grid(True, alpha=0.3, axis='y')
     ax1.set_xlim(left=0)
     
-    # Top right: Statistics summary as text (moved here for better visibility)
+
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.axis('off')
     stats_text = f"""
@@ -745,7 +745,7 @@ Threshold ({config.amortization_min_spending_threshold*100:.0f}%): ${config.amor
             verticalalignment='center', transform=ax2.transAxes,
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
     
-    # Bottom left: Box plot with outliers removed (focus on main distribution)
+
     ax3 = fig.add_subplot(gs[1, 0])
     bp = ax3.boxplot(
         [all_withdrawals],
@@ -753,11 +753,11 @@ Threshold ({config.amortization_min_spending_threshold*100:.0f}%): ${config.amor
         patch_artist=True,
         boxprops=dict(facecolor='lightblue', alpha=0.7, linewidth=1.5),
         medianprops=dict(color='red', linewidth=2.5),
-        # Use white whiskers/caps so they stand out on the dark background
+
         whiskerprops=dict(color='white', linewidth=1.5),
         capprops=dict(color='white', linewidth=1.5),
         widths=0.6,
-        showfliers=False,  # Remove outliers to prevent smooshing
+        showfliers=False,
     )
     if initial_spending:
         ax3.axhline(y=initial_spending, color='red', linestyle='--', linewidth=2,
@@ -772,9 +772,9 @@ Threshold ({config.amortization_min_spending_threshold*100:.0f}%): ${config.amor
     ax3.grid(True, alpha=0.3, axis='y')
     ax3.set_ylim(bottom=0)
     
-    # Bottom right: Histogram with better range (focus on main distribution, cap outliers)
+
     ax4 = fig.add_subplot(gs[1, 1])
-    # Cap outliers at 99th percentile for better visualization
+
     p99_w = np.percentile(all_withdrawals, 99)
     capped_withdrawals = np.clip(all_withdrawals, 0, p99_w)
     n_bins2 = min(60, len(np.unique(capped_withdrawals)))

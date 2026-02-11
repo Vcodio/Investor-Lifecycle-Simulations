@@ -10,12 +10,12 @@ import os
 import importlib.util
 import importlib
 
-# Calculate paths
+
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _parent_dir = os.path.dirname(_current_dir)
 _build_dir = os.path.join(_parent_dir, 'build')
 
-# Set up paths
+
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 if _current_dir not in sys.path:
@@ -23,7 +23,7 @@ if _current_dir not in sys.path:
 if os.path.exists(_build_dir) and _build_dir not in sys.path:
     sys.path.insert(0, _build_dir)
 
-# Set up import finder
+
 class PackageImportFinder:
     """Import finder that makes dynamically loaded modules importable"""
     def __init__(self, package_dir, pkg_name):
@@ -42,7 +42,7 @@ class PackageImportFinder:
 
 package_name = 'lifecycle_model'
 
-# Install import finder if not already installed
+
 finder_installed = any(
     isinstance(f, PackageImportFinder) and f.package_name == package_name
     for f in sys.meta_path
@@ -51,11 +51,11 @@ if not finder_installed:
     finder = PackageImportFinder(_current_dir, package_name)
     sys.meta_path.insert(0, finder)
 
-# Set up package structure
+
 if package_name not in sys.modules:
     sys.modules[package_name] = type(sys)(package_name)
     
-    # Load __init__.py
+
     init_path = os.path.join(_current_dir, '__init__.py')
     if os.path.exists(init_path):
         try:
@@ -67,7 +67,7 @@ if package_name not in sys.modules:
         except Exception:
             pass
     
-    # Pre-load critical modules
+
     modules_to_load = [
         ('config', 'config.py'),
         ('cython_wrapper', 'cython_wrapper.py'),

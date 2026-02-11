@@ -41,7 +41,7 @@ def crra_utility(c, gamma):
         Utility value(s)
     """
     if c <= 0:
-        return -1e10  # Heavy penalty for zero/negative consumption (matches Cederburg)
+        return -1e10
     if gamma == 1:
         return np.log(c)
     else:
@@ -89,15 +89,15 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
     total_utilities = {}
     gamma = gamma_param
     
-    # Monthly discount factor: beta_monthly = beta^(1/12)
+
     beta_monthly = beta**(1.0/12.0)
     
     for name in consumption_streams_dict.keys():
-        # Collect consumption values at each time t across all simulations
-        consumption_by_time = {}  # t -> list of consumption values at time t (MONTHLY periods)
+
+        consumption_by_time = {}
         bequest_values = []
         
-        # Handle both dict format (from multi-portfolio) and list format (single portfolio)
+
         consumption_streams_list = consumption_streams_dict[name]
         bequests_list = bequests_dict[name] if name in bequests_dict else []
         
@@ -105,12 +105,12 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
         logger.info(f"  Number of bequests: {len(bequests_list)}")
         
         for sim_idx, sim_data in enumerate(consumption_streams_list):
-            # Handle both dict format (with 'consumption' key) and direct list/array format
+
             if isinstance(sim_data, dict) and 'consumption' in sim_data:
                 consumption_stream = sim_data['consumption']
                 bequest = sim_data.get('bequest', 0.0)
             else:
-                # Direct consumption stream (list/array)
+
                 consumption_stream = sim_data
                 bequest = bequests_list[sim_idx] if sim_idx < len(bequests_list) else 0.0
             
@@ -121,7 +121,7 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
                     consumption_by_time[t] = []
                 consumption_by_time[t].append(c)
             
-            # Debug first few simulations
+
             if sim_idx < 3:
                 logger.info(f"  Sim {sim_idx}: stream_length={len(consumption_stream)}, "
                            f"bequest={bequest:.2f}, "
@@ -130,7 +130,7 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
         logger.info(f"  Total time periods (months): {len(consumption_by_time)}")
         logger.info(f"  Time period range: {min(consumption_by_time.keys())} to {max(consumption_by_time.keys())}")
         
-        # Debug consumption statistics
+
         if len(consumption_by_time) > 0:
             sample_t = sorted(consumption_by_time.keys())[0]
             sample_values = consumption_by_time[sample_t]
@@ -138,15 +138,15 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
                        f"mean={np.mean(sample_values):.2f}, "
                        f"min={min(sample_values):.2f}, max={max(sample_values):.2f}")
         
-        # Debug bequest statistics
+
         if len(bequest_values) > 0:
             logger.info(f"  Bequest stats: n={len(bequest_values)}, "
                        f"mean={np.mean(bequest_values):.2f}, "
                        f"min={min(bequest_values):.2f}, max={max(bequest_values):.2f}")
         
-        # Calculate expected utility at each time t
-        # E[U(c_t)] = (1/N) * sum_i U(c_t^i)
-        # Matches Cederburg exactly: uses log or c^(1-γ)/(1-γ) directly
+
+
+
         expected_utility_by_time = {}
         for t, consumption_values in consumption_by_time.items():
             if gamma == 1:
@@ -155,13 +155,13 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
                 expected_utility_values = [c**(1 - gamma) / (1 - gamma) for c in consumption_values]
             expected_utility_by_time[t] = np.mean(expected_utility_values)
             
-            # Debug first few time periods
-            if t < 5 or (t % 12 == 0 and t < 60):  # First 5 months and first few years
+
+            if t < 5 or (t % 12 == 0 and t < 60):
                 logger.info(f"    t={t} (month): n_values={len(consumption_values)}, "
                            f"mean_c={np.mean(consumption_values):.2f}, "
                            f"E[U]={expected_utility_by_time[t]:.6e}")
         
-        # Calculate expected bequest utility
+
         if len(bequest_values) > 0:
             if gamma == 1:
                 bequest_utilities = [np.log(b + k_bequest) for b in bequest_values]
@@ -171,26 +171,26 @@ def calculate_total_utility_ex_ante(consumption_streams_dict, bequests_dict, gam
         else:
             expected_bequest_utility = 0.0
         
-        # Calculate total expected utility: sum_t β_monthly^t * E[U(c_t)] + β_monthly^T * θ * E[U(bequest)]
-        # For monthly: t is in months, use beta_monthly^t instead of beta^t
+
+
         total_expected_utility_c = 0.0
         discount_sum_check = 0.0
         for t in sorted(consumption_by_time.keys()):
-            discount_factor = beta_monthly**t  # Monthly discounting (matches Cederburg but with monthly periods)
+            discount_factor = beta_monthly**t
             discount_sum_check += discount_factor
             utility_contribution = expected_utility_by_time[t] * discount_factor
             total_expected_utility_c += utility_contribution
             
-            # Debug first few contributions
+
             if t < 5 or (t % 12 == 0 and t < 60):
                 logger.info(f"    t={t}: discount={discount_factor:.6f}, "
                            f"E[U]={expected_utility_by_time[t]:.6e}, "
                            f"contribution={utility_contribution:.6e}")
         
-        # Average retirement length (for bequest discount) - in months
+
         avg_retirement_months = np.mean([len(sim_data['consumption']) if isinstance(sim_data, dict) and 'consumption' in sim_data 
                                         else len(sim_data) for sim_data in consumption_streams_list])
-        bequest_discount = beta_monthly**avg_retirement_months  # Monthly discounting
+        bequest_discount = beta_monthly**avg_retirement_months
         bequest_utility_contribution = bequest_discount * theta * expected_bequest_utility
         total_expected_utility = total_expected_utility_c + bequest_utility_contribution
         
@@ -249,10 +249,10 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
     """
     ce_values = {name: [] for name in consumption_streams_dict.keys()}
     
-    # Use gamma_param explicitly
+
     gamma = gamma_param
     
-    # Monthly discount factor: beta_monthly = beta^(1/12)
+
     beta_monthly = beta**(1.0/12.0)
     
     logger.info(f"\n[DEBUG CE] calculate_ce_for_crra called with:")
@@ -263,7 +263,7 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
     for name in consumption_streams_dict.keys():
         logger.info(f"\n[DEBUG CE] Processing portfolio: {name}")
         
-        # Collect consumption values at each time t across all simulations
+
         max_years = 0
         consumption_streams_list = consumption_streams_dict[name]
         bequests_list = bequests_dict[name] if name in bequests_dict else []
@@ -277,12 +277,12 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
             else:
                 max_years = max(max_years, len(sim_data))
         
-        # For each time t, collect consumption values across simulations
-        consumption_by_time = {}  # t -> list of consumption values at time t (MONTHLY periods)
+
+        consumption_by_time = {}
         bequest_values = []
         
         for sim_idx, sim_data in enumerate(consumption_streams_list):
-            # Handle both dict format and direct list format
+
             if isinstance(sim_data, dict) and 'consumption' in sim_data:
                 consumption_stream = sim_data['consumption']
                 bequest = sim_data.get('bequest', 0.0)
@@ -297,7 +297,7 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
                     consumption_by_time[t] = []
                 consumption_by_time[t].append(c)
             
-            # Debug first few simulations
+
             if sim_idx < 3:
                 logger.info(f"  Sim {sim_idx}: stream_length={len(consumption_stream)}, "
                            f"bequest={bequest:.2f}, "
@@ -306,40 +306,40 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
         logger.info(f"  Total time periods (months): {len(consumption_by_time)}")
         if len(consumption_by_time) > 0:
             logger.info(f"  Time period range: {min(consumption_by_time.keys())} to {max(consumption_by_time.keys())}")
-            # Debug consumption statistics
+
             sample_t = sorted(consumption_by_time.keys())[0]
             sample_values = consumption_by_time[sample_t]
             logger.info(f"  Sample t={sample_t}: n_values={len(sample_values)}, "
                        f"mean={np.mean(sample_values):.2f}, "
                        f"min={min(sample_values):.2f}, max={max(sample_values):.2f}")
         
-        # Debug bequest statistics
+
         if len(bequest_values) > 0:
             logger.info(f"  Bequest stats: n={len(bequest_values)}, "
                        f"mean={np.mean(bequest_values):.2f}, "
                        f"min={min(bequest_values):.2f}, max={max(bequest_values):.2f}")
         
-        # Calculate expected utility at each time t
-        # E[U(c_t)] = (1/N) * sum_i U(c_t^i)
-        # Matches Cederburg exactly
+
+
+
         expected_utility_by_time = {}
         for t, consumption_values in consumption_by_time.items():
-            # Calculate expected value of c^(1-γ) at time t
+
             if gamma == 1:
-                # For γ=1, U(c) = log(c)
+
                 expected_utility_values = [np.log(c) for c in consumption_values]
             else:
                 expected_utility_values = [c**(1 - gamma) / (1 - gamma) for c in consumption_values]
             expected_utility_by_time[t] = np.mean(expected_utility_values)
             
-            # Debug first few time periods
+
             if t < 5 or (t % 12 == 0 and t < 60):
                 logger.info(f"    t={t} (month): n_values={len(consumption_values)}, "
                            f"mean_c={np.mean(consumption_values):.2f}, "
                            f"E[U]={expected_utility_by_time[t]:.6e}")
         
-        # Calculate expected bequest utility
-        # E[U(bequest)] = (1/N) * sum_i U(bequest_i + k_bequest)
+
+
         if len(bequest_values) > 0:
             if gamma == 1:
                 bequest_utilities = [np.log(b + k_bequest) for b in bequest_values]
@@ -351,26 +351,26 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
             expected_bequest_utility = 0.0
             logger.info(f"  Expected bequest utility: 0.0 (no bequests)")
         
-        # Calculate total expected utility: sum_t β_monthly^t * E[U(c_t)] + β_monthly^T * θ * E[U(bequest)]
-        # For monthly: use beta_monthly^t where t is in months
+
+
         discount_sum = 0.0
         total_expected_utility_c = 0.0
         for t in sorted(consumption_by_time.keys()):
-            discount_factor = beta_monthly**t  # Monthly discounting
+            discount_factor = beta_monthly**t
             discount_sum += discount_factor
             utility_contribution = expected_utility_by_time[t] * discount_factor
             total_expected_utility_c += utility_contribution
             
-            # Debug first few contributions
+
             if t < 5 or (t % 12 == 0 and t < 60):
                 logger.info(f"    t={t}: discount={discount_factor:.6f}, "
                            f"E[U]={expected_utility_by_time[t]:.6e}, "
                            f"contribution={utility_contribution:.6e}")
         
-        # Average retirement length (for bequest discount) - in months
+
         avg_retirement_months = np.mean([len(sim_data['consumption']) if isinstance(sim_data, dict) and 'consumption' in sim_data 
                                         else len(sim_data) for sim_data in consumption_streams_list])
-        bequest_discount = beta_monthly**avg_retirement_months  # Monthly discounting
+        bequest_discount = beta_monthly**avg_retirement_months
         bequest_utility_contribution = bequest_discount * theta * expected_bequest_utility
         total_expected_utility = total_expected_utility_c + bequest_utility_contribution
         
@@ -383,17 +383,17 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
         logger.info(f"    Total expected utility: {total_expected_utility:.6e}")
         logger.info(f"    Discount sum: {discount_sum:.6f}")
         
-        # Calculate CE: sum_t β_monthly^t * U(CE) = sum_t β_monthly^t * E[U(c_t)]
-        # For CRRA: CE^(1-γ)/(1-γ) * sum_t β_monthly^t = sum_t β_monthly^t * E[U(c_t)]
-        # Solving: CE^(1-γ) = sum_t β_monthly^t * E[U(c_t)] * (1-γ) / sum_t β_monthly^t
-        # CE = [sum_t β_monthly^t * E[U(c_t)] * (1-γ) / sum_t β_monthly^t]^(1/(1-γ))
+
+
+
+
         
         if discount_sum > 0 and total_expected_utility_c != 0:
             if gamma == 1:
-                # For γ=1, U(CE) = log(CE)
-                # log(CE) * sum_t β_monthly^t = sum_t β_monthly^t * E[log(c_t)]
-                # log(CE) = sum_t β_monthly^t * E[log(c_t)] / sum_t β_monthly^t
-                # CE = exp(sum_t β_monthly^t * E[log(c_t)] / sum_t β_monthly^t)
+
+
+
+
                 logger.info(f"  [DEBUG CE] Gamma=1 case (log utility)")
                 expected_log_by_time = {}
                 for t, consumption_values in consumption_by_time.items():
@@ -402,7 +402,7 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
                 
                 weighted_log_sum = 0.0
                 for t in sorted(expected_log_by_time.keys()):
-                    discount_factor = beta_monthly**t  # Monthly discounting
+                    discount_factor = beta_monthly**t
                     weighted_log_sum += expected_log_by_time[t] * discount_factor
                     if t < 5 or (t % 12 == 0 and t < 60):
                         logger.info(f"    t={t}: E[log(c)]={expected_log_by_time[t]:.6f}, "
@@ -414,12 +414,12 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
                            f"discount_sum={discount_sum:.6f}, "
                            f"CE (monthly, before household scaling)={ce_consumption:.2f}")
             else:
-                # For γ > 1: utility is negative
-                if total_expected_utility_c < 0:  # Should be negative for γ > 1
+
+                if total_expected_utility_c < 0:
                     logger.info(f"  [DEBUG CE] Gamma > 1 case (gamma={gamma}), utility is negative")
-                    numerator = total_expected_utility_c * (1 - gamma)  # Both negative, so positive
-                    base = numerator / discount_sum  # Positive
-                    exponent = 1 / (1 - gamma)  # Negative for γ > 1
+                    numerator = total_expected_utility_c * (1 - gamma)
+                    base = numerator / discount_sum
+                    exponent = 1 / (1 - gamma)
                     
                     logger.info(f"    total_expected_utility_c={total_expected_utility_c:.6e}")
                     logger.info(f"    numerator = {total_expected_utility_c:.6e} * {1 - gamma:.2f} = {numerator:.6e}")
@@ -427,13 +427,13 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
                     logger.info(f"    exponent = 1/(1-{gamma:.2f}) = {exponent:.6f}")
                     
                     if base > 0:
-                        # Use log for numerical stability: CE = exp(exponent * log(base))
-                        # Since exponent is negative, this is equivalent to 1/base^(1/(γ-1))
+
+
                         log_base = np.log(base)
                         log_ce = exponent * log_base
                         ce_consumption = np.exp(log_ce)
                         logger.info(f"    log_base={log_base:.6f}, log_ce={log_ce:.6f}, CE={ce_consumption:.2f}")
-                        # Verify: should be positive and finite
+
                         if not np.isfinite(ce_consumption) or ce_consumption <= 0:
                             logger.warning(f"    WARNING: CE is not finite or <= 0, setting to 0")
                             ce_consumption = 0.0
@@ -441,11 +441,11 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
                         logger.warning(f"    WARNING: base <= 0, setting CE to 0")
                         ce_consumption = 0.0
                 else:
-                    # For γ < 1: utility is positive, use similar approach
+
                     logger.info(f"  [DEBUG CE] Gamma < 1 case (gamma={gamma}), utility is positive")
-                    numerator = total_expected_utility_c * (1 - gamma)  # Both positive, so positive
-                    base = numerator / discount_sum  # Positive
-                    exponent = 1 / (1 - gamma)  # Positive for γ < 1
+                    numerator = total_expected_utility_c * (1 - gamma)
+                    base = numerator / discount_sum
+                    exponent = 1 / (1 - gamma)
                     
                     logger.info(f"    total_expected_utility_c={total_expected_utility_c:.6e}")
                     logger.info(f"    numerator={numerator:.6e}, base={base:.6e}, exponent={exponent:.6f}")
@@ -465,7 +465,7 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
             logger.warning(f"  [DEBUG CE] WARNING: discount_sum={discount_sum:.6f} <= 0 or total_expected_utility_c={total_expected_utility_c:.6e} == 0")
             ce_consumption = 0.0
         
-        # Scale by household_size (matches Cederburg)
+
         ce_consumption_total = ce_consumption * np.sqrt(household_size)
         logger.info(f"  [DEBUG CE] Final CE calculation:")
         logger.info(f"    CE (monthly, before household scaling): {ce_consumption:.2f}")
@@ -473,9 +473,9 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
         logger.info(f"    CE_total (monthly, scaled): {ce_consumption_total:.2f}")
         logger.info(f"    CE_total (annual, scaled): ${ce_consumption_total * 12:,.2f}")
         
-        # Store this single CE value for this portfolio (calculated across all simulations)
-        # Note: We return a list with one value per simulation for compatibility,
-        # but it's the same value for all (calculated ex-ante)
+
+
+
         num_sims = len(consumption_streams_list)
         ce_values[name] = [ce_consumption_total] * num_sims
         logger.info(f"  [DEBUG CE] Stored CE value for {num_sims} simulations: {ce_consumption_total:.2f} (monthly)")
@@ -484,14 +484,14 @@ def calculate_ce_for_crra(consumption_streams_dict, bequests_dict, gamma_param, 
     return ce_values
 
 
-# Backward compatibility function - converts list format to dict format
+
 def calculate_certainty_equivalent_ex_ante(consumption_streams, bequests, gamma, beta, k_bequest, theta, household_size):
     """
     Backward compatibility wrapper for single portfolio.
     
     Converts list format to dict format and calls calculate_ce_for_crra.
     """
-    # Convert to dict format
+
     consumption_streams_dict = {'Portfolio': consumption_streams}
     bequests_dict = {'Portfolio': bequests}
     
@@ -499,15 +499,15 @@ def calculate_certainty_equivalent_ex_ante(consumption_streams, bequests, gamma,
         consumption_streams_dict, bequests_dict, gamma, beta, k_bequest, theta, household_size
     )
     
-    # Return first (and only) portfolio's CE value
+
     if 'Portfolio' in ce_values_dict and len(ce_values_dict['Portfolio']) > 0:
         return ce_values_dict['Portfolio'][0]
     else:
         return 0.0
 
 
-# Legacy functions for backward compatibility (per-simulation approach)
-# These are kept but not recommended - use EX-ANTE functions above
+
+
 
 def calculate_total_utility(consumption_stream, bequest, gamma, beta, k_bequest, theta, household_size):
     """
@@ -518,33 +518,33 @@ def calculate_total_utility(consumption_stream, bequest, gamma, beta, k_bequest,
     """
     beta_monthly = beta**(1.0/12.0)
     
-    # Calculate consumption utility
+
     consumption_utility = 0.0
     for t, c in enumerate(consumption_stream):
-        discount_factor = beta_monthly**t  # Monthly discounting
+        discount_factor = beta_monthly**t
         if gamma == 1:
             consumption_utility += np.log(max(c, 1e-10)) * discount_factor
         else:
             consumption_utility += (max(c, 1e-10)**(1 - gamma) / (1 - gamma)) * discount_factor
     
-    # Scale by household size
+
     consumption_utility *= np.sqrt(household_size)
     
-    # Calculate bequest utility
+
     bequest_value = max(0.0, bequest + k_bequest)
     if gamma == 1:
         bequest_utility = np.log(bequest_value) if bequest_value > 0 else -1e10
     else:
         bequest_utility = (bequest_value**(1 - gamma) / (1 - gamma)) if bequest_value > 0 else (-1e10 if gamma > 1 else 0.0)
     
-    # Scale bequest utility by household size
+
     bequest_utility *= np.sqrt(household_size)
     
-    # Discount bequest utility by final period (months)
+
     T_months = len(consumption_stream)
     bequest_discount = beta_monthly**T_months
     
-    # Total utility
+
     total_utility = consumption_utility + bequest_discount * theta * bequest_utility
     
     return total_utility
@@ -559,12 +559,12 @@ def calculate_certainty_equivalent(consumption_stream, bequest, gamma, beta, k_b
     """
     beta_monthly = beta**(1.0/12.0)
     
-    # Calculate total utility
+
     total_utility = calculate_total_utility(
         consumption_stream, bequest, gamma, beta, k_bequest, theta, household_size
     )
     
-    # Calculate discount sum (monthly periods)
+
     T_months = len(consumption_stream)
     discount_sum = sum(beta_monthly**t for t in range(T_months))
     
@@ -582,8 +582,8 @@ def calculate_certainty_equivalent(consumption_stream, bequest, gamma, beta, k_b
                 discount_factor = beta_monthly**t
                 consumption_utility += (max(c, 1e-10)**(1 - gamma) / (1 - gamma)) * discount_factor * np.sqrt(household_size)
             
-            # Solve for CE
-            if consumption_utility < 0:  # gamma > 1
+
+            if consumption_utility < 0:
                 numerator = consumption_utility * (1 - gamma)
                 base = numerator / (discount_sum * np.sqrt(household_size))
                 if base > 0:
@@ -591,7 +591,7 @@ def calculate_certainty_equivalent(consumption_stream, bequest, gamma, beta, k_b
                     ce_consumption = np.exp(exponent * np.log(base))
                 else:
                     ce_consumption = 0.0
-            else:  # gamma < 1
+            else:
                 numerator = consumption_utility * (1 - gamma)
                 base = numerator / (discount_sum * np.sqrt(household_size))
                 if base > 0:
@@ -602,8 +602,8 @@ def calculate_certainty_equivalent(consumption_stream, bequest, gamma, beta, k_b
     else:
         ce_consumption = 0.0
     
-    # Scale back up (consumption was divided by sqrt(household_size) when stored)
+
     ce_consumption *= np.sqrt(household_size)
     
-    # Note: ce_consumption is MONTHLY
+
     return ce_consumption

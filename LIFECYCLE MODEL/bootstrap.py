@@ -31,7 +31,7 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
         df = pd.read_csv(csv_path)
         logger.info(f"[DEBUG] CSV loaded successfully. Shape: {df.shape}, Columns: {list(df.columns)}")
         
-        # Validate columns exist
+
         if portfolio_column_name not in df.columns:
             logger.error(f"[DEBUG] Portfolio column '{portfolio_column_name}' not found!")
             logger.error(f"[DEBUG] Available columns: {list(df.columns)}")
@@ -44,11 +44,11 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
         logger.info(f"[DEBUG] Both columns found. Portfolio column has {len(df[portfolio_column_name])} values, "
                    f"Inflation column has {len(df[inflation_column_name])} values")
         
-        # Convert Date column to datetime - handle mixed formats
+
         logger.info(f"[DEBUG] Converting Date column to datetime...")
         df['Date'] = pd.to_datetime(df['Date'], format='mixed', errors='coerce')
         
-        # Check for any NaT (Not a Time) values that couldn't be parsed
+
         na_count = df['Date'].isna().sum()
         if na_count > 0:
             logger.warning(f"[DEBUG] {na_count} dates could not be parsed. Dropping rows with invalid dates.")
@@ -57,8 +57,8 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
         
         logger.info(f"[DEBUG] Date range: {df['Date'].min()} to {df['Date'].max()}")
         
-        # Calculate daily returns from portfolio values
-        # Assuming the values are cumulative (starting at 10000)
+
+
         portfolio_values = df[portfolio_column_name].values
         logger.info(f"[DEBUG] Portfolio values: min={np.min(portfolio_values):.2f}, max={np.max(portfolio_values):.2f}, "
                    f"first={portfolio_values[0]:.2f}, last={portfolio_values[-1]:.2f}")
@@ -67,7 +67,7 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
                    f"Mean={np.mean(daily_returns):.6f}, Std={np.std(daily_returns):.6f}, "
                    f"Min={np.min(daily_returns):.6f}, Max={np.max(daily_returns):.6f}")
         
-        # Calculate daily inflation changes
+
         inflation_values = df[inflation_column_name].values
         logger.info(f"[DEBUG] Inflation values: min={np.min(inflation_values):.6f}, max={np.max(inflation_values):.6f}, "
                    f"first={inflation_values[0]:.6f}, last={inflation_values[-1]:.6f}")
@@ -75,11 +75,11 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
         logger.info(f"[DEBUG] Calculated {len(daily_inflation_changes)} daily inflation changes. "
                    f"Mean={np.mean(daily_inflation_changes):.6f}, Std={np.std(daily_inflation_changes):.6f}")
         
-        # Get dates (excluding first date since we lost it in diff)
+
         dates = df['Date'].values[1:]
         logger.info(f"[DEBUG] Using {len(dates)} dates (excluded first date due to diff)")
         
-        # Group by year-month and aggregate to monthly
+
         df_returns = pd.DataFrame({
             'Date': dates,
             'DailyReturn': daily_returns,
@@ -88,9 +88,9 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
         df_returns['YearMonth'] = df_returns['Date'].dt.to_period('M')
         logger.info(f"[DEBUG] Created YearMonth periods. Unique months: {df_returns['YearMonth'].nunique()}")
         
-        # Aggregate daily returns to monthly returns
-        # CRITICAL: Both DailyReturn and DailyInflation are grouped by the SAME YearMonth,
-        # ensuring monthly_returns[i] and monthly_inflation[i] are from the exact same historical month.
+
+
+
         logger.info(f"[DEBUG] Aggregating daily data to monthly returns...")
         monthly_returns_data = df_returns.groupby('YearMonth').agg({
             'DailyReturn': lambda x: np.prod(1 + x) - 1.0,
@@ -109,7 +109,7 @@ def load_and_convert_to_monthly_returns(csv_path, portfolio_column_name, inflati
                    f"mean={np.mean(monthly_inflation):.6f}, std={np.std(monthly_inflation):.6f}")
         logger.info(f"[DEBUG] Monthly dates range: {monthly_dates[0]} to {monthly_dates[-1]}")
         
-        # Verify alignment
+
         if len(monthly_returns) != len(monthly_inflation):
             logger.error(f"[DEBUG] ALIGNMENT ERROR: monthly_returns length={len(monthly_returns)}, "
                         f"monthly_inflation length={len(monthly_inflation)}")
@@ -129,31 +129,39 @@ class BlockBootstrap:
     """
     Block bootstrap sampler for monthly returns.
     Supports both overlapping and non-overlapping blocks.
+    Optional: shift returns in log space so expected geometric mean matches a target (annual rate).
     """
-    def __init__(self, monthly_returns, monthly_inflation, block_length_months, 
-                 overlapping=True, rng=None):
+    def __init__(self, monthly_returns, monthly_inflation, block_length_months,
+                 overlapping=True, rng=None, target_geometric_mean_annual=None):
         """
         Initialize block bootstrap.
-        
+
         Args:
             monthly_returns: Array of monthly returns
             monthly_inflation: Array of monthly inflation values
             block_length_months: Length of each block in months (e.g., 120 for 10 years)
             overlapping: If True, use overlapping blocks; if False, use non-overlapping
             rng: Random number generator (default: new generator)
+            target_geometric_mean_annual: If set (e.g. 0.06 for 6%), each bootstrapped
+                return is shifted in log space so the expected geometric mean (annual) equals
+                this value. Historical volatility and correlation structure are preserved.
         """
         self.monthly_returns = np.array(monthly_returns)
         self.monthly_inflation = np.array(monthly_inflation)
-        
-        # Verify arrays are the same length
+
+
         if len(self.monthly_returns) != len(self.monthly_inflation):
             raise ValueError(f"monthly_returns and monthly_inflation must have the same length. "
-                           f"Got {len(self.monthly_returns)} and {len(self.monthly_inflation)}")
+                             f"Got {len(self.monthly_returns)} and {len(self.monthly_inflation)}")
         self.block_length_months = int(block_length_months)
         self.overlapping = overlapping
         self.rng = rng if rng is not None else np.random.default_rng()
-        
-        # Create blocks
+        self.target_geometric_mean_annual = target_geometric_mean_annual
+
+
+        self._hist_mean_log_return_monthly = np.mean(np.log(1.0 + self.monthly_returns))
+
+
         self._create_blocks(verbose=False)
         
     def _create_blocks(self, verbose=False):
@@ -225,11 +233,20 @@ class BlockBootstrap:
         
         if verbose:
             logger.info(f"Sampled {block_number} blocks for {num_months} total months")
-        
-        return np.array(returns_sequence[:num_months]), np.array(inflation_sequence[:num_months])
+
+        returns_out = np.array(returns_sequence[:num_months])
+
+        if self.target_geometric_mean_annual is not None:
+
+            target_log_monthly = np.log(1.0 + self.target_geometric_mean_annual) / 12.0
+            delta = target_log_monthly - self._hist_mean_log_return_monthly
+
+            returns_out = (1.0 + returns_out) * np.exp(delta) - 1.0
+
+        return returns_out, np.array(inflation_sequence[:num_months])
 
 
-# Global cache for bootstrap data (loaded once)
+
 _bootstrap_data_cache = None
 
 def load_bootstrap_data(config):
@@ -247,12 +264,12 @@ def load_bootstrap_data(config):
     if not config.use_block_bootstrap:
         return None
     
-    # Return cached data if available
+
     if _bootstrap_data_cache is not None:
         return _bootstrap_data_cache
     
     try:
-        # #region agent log
+
         try:
             import json
             import time
@@ -263,7 +280,7 @@ def load_bootstrap_data(config):
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_bootstrap_load_start', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:254', 'message': 'Starting load_and_convert_to_monthly_returns', 'data': {'csv_path': config.bootstrap_csv_path, 'portfolio_col': config.portfolio_column_name, 'inflation_col': config.inflation_column_name}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         monthly_returns, monthly_inflation, _ = load_and_convert_to_monthly_returns(
             config.bootstrap_csv_path,
             config.portfolio_column_name,
@@ -271,7 +288,7 @@ def load_bootstrap_data(config):
         )
         
         _bootstrap_data_cache = (monthly_returns, monthly_inflation)
-        # #region agent log
+
         try:
             import json
             import time
@@ -282,12 +299,12 @@ def load_bootstrap_data(config):
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_bootstrap_load_success', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:261', 'message': 'Bootstrap data loaded successfully', 'data': {'returns_len': len(monthly_returns), 'inflation_len': len(monthly_inflation)}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         return _bootstrap_data_cache
         
     except Exception as e:
         logger.error(f"Failed to load bootstrap data: {e}")
-        # #region agent log
+
         try:
             import json
             import time
@@ -299,7 +316,7 @@ def load_bootstrap_data(config):
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_bootstrap_load_error', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:264', 'message': 'Exception in load_bootstrap_data', 'data': {'error': str(e), 'error_type': type(e).__name__, 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         raise
 
 
@@ -320,7 +337,7 @@ def create_block_bootstrap_sampler(config, rng, monthly_returns=None, monthly_in
         return None
     
     try:
-        # Use provided data or load it
+
         if monthly_returns is None or monthly_inflation is None:
             data = load_bootstrap_data(config)
             if data is None:
@@ -328,13 +345,24 @@ def create_block_bootstrap_sampler(config, rng, monthly_returns=None, monthly_in
             monthly_returns, monthly_inflation = data
         
         block_length_months = int(config.block_length_years * 12)
-        
+
+        real_override = getattr(config, 'bootstrap_geometric_mean_override', None)
+        if real_override is not None:
+            monthly_inflation_arr = np.array(monthly_inflation)
+            monthly_inflation_arr = np.clip(monthly_inflation_arr, -0.99, np.inf)
+            geom_mean_monthly_inflation = np.exp(np.mean(np.log(1.0 + monthly_inflation_arr))) - 1.0
+            annual_inflation = (1.0 + geom_mean_monthly_inflation) ** 12 - 1.0
+            nominal_target = (1.0 + real_override) * (1.0 + annual_inflation) - 1.0
+        else:
+            nominal_target = None
+
         bootstrap_sampler = BlockBootstrap(
             monthly_returns,
             monthly_inflation,
             block_length_months,
             overlapping=config.block_overlapping,
-            rng=rng
+            rng=rng,
+            target_geometric_mean_annual=nominal_target
         )
         
         return bootstrap_sampler

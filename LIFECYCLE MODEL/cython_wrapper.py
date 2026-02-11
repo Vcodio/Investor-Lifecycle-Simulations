@@ -8,21 +8,47 @@ for performance-critical functions.
 import sys
 import os
 
-# Add parent directories to path to find compiled Cython module
+
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _parent_dir = os.path.dirname(_script_dir)
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 
-# Add build directory to path (where compiled Cython modules are located)
+
 _build_dir = os.path.join(_parent_dir, 'build')
 if os.path.exists(_build_dir) and _build_dir not in sys.path:
     sys.path.insert(0, _build_dir)
 
-# Also check lib.win-amd64-cpython-XXX subdirectory (Windows build structure)
-_build_lib_dir = os.path.join(_build_dir, f'lib.win-amd64-cpython-{sys.version_info.major}{sys.version_info.minor}')
-if os.path.exists(_build_lib_dir) and _build_lib_dir not in sys.path:
-    sys.path.insert(0, _build_lib_dir)
+
+
+
+
+import platform
+system = platform.system().lower()
+machine = platform.machine().lower()
+
+
+python_version_str = f"{sys.version_info.major}{sys.version_info.minor}"
+python_version_str_short = f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
+build_patterns = [
+
+    _build_dir,
+
+    os.path.join(_build_dir, f'lib.win-amd64-cpython-{python_version_str}'),
+    os.path.join(_build_dir, f'lib.win-amd64-cpython-{python_version_str_short}'),
+
+    os.path.join(_build_dir, f'lib.linux-{machine}-cpython-{python_version_str}'),
+    os.path.join(_build_dir, f'lib.linux-{machine}-cpython-{python_version_str_short}'),
+
+    os.path.join(_build_dir, f'lib.darwin-{machine}-cpython-{python_version_str}'),
+    os.path.join(_build_dir, f'lib.darwin-{machine}-cpython-{python_version_str_short}'),
+]
+
+for build_path in build_patterns:
+    if os.path.exists(build_path) and build_path not in sys.path:
+        sys.path.insert(0, build_path)
 
 CYTHON_AVAILABLE = False
 try:
@@ -40,7 +66,7 @@ def simulate_monthly_return_svj(rng_local, params_annual, current_variance):
     if CYTHON_AVAILABLE:
         return simulate_monthly_return_svj_cython(rng_local, params_annual, current_variance)
     else:
-        # Python fallback
+
         import numpy as np
         dt = 1.0 / 12.0
         kappa = params_annual["kappa"]
@@ -86,7 +112,7 @@ def calculate_max_drawdown(series):
     if CYTHON_AVAILABLE and isinstance(series, np.ndarray):
         return calculate_max_drawdown_cython(series.astype(np.float64))
     else:
-        # Python fallback
+
         series = np.array(series)
         peak_series = np.maximum.accumulate(series)
         drawdowns = (series - peak_series) / peak_series

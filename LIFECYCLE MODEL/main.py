@@ -7,11 +7,11 @@ using the modular components.
 
 import numpy as np
 import logging
-# Check if running in Streamlit and disable tqdm if so
+
 try:
     import streamlit as st
     _IN_STREAMLIT = True
-    # Create a no-op tqdm for Streamlit that works as both function and context manager
+
     class _NoOpTqdm:
         def __init__(self, iterable=None, *args, **kwargs):
             self.iterable = iterable if iterable is not None else []
@@ -71,19 +71,19 @@ def build_required_principal_table(config, params, bootstrap_data=None):
         config.mean_inflation_geometric, config.std_inflation)
 
     previous_principal = None
-    # #region agent log
+
     import time
     t_table_start = time.perf_counter()
-    # #endregion
+
     for age in tqdm(target_ages, desc="Calculating required principal per age"):
-        # #region agent log
+
         t_age_start = time.perf_counter()
-        # #endregion
+
         principal = find_required_principal(age, config.success_target,
                                            config.num_nested, config, params,
                                            warm_start_principal=previous_principal,
                                            bootstrap_data=bootstrap_data)
-        # #region agent log
+
         t_age_end = time.perf_counter()
         if age == target_ages[0] or age == target_ages[len(target_ages)//2]:
             try:
@@ -95,7 +95,7 @@ def build_required_principal_table(config, params, bootstrap_data=None):
                 with open(log_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps({'id': 'log_find_principal_time', 'timestamp': time.time() * 1000, 'location': 'main.py:54', 'message': 'find_required_principal timing', 'data': {'duration_ms': (t_age_end - t_age_start) * 1000, 'age': age}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
             except: pass
-        # #endregion
+
         
         if config.use_principal_deviation_threshold and previous_principal is not None:
             max_change = previous_principal * config.principal_deviation_threshold
@@ -212,7 +212,8 @@ def display_final_results(retirement_ages, config, utility_ex_ante=None, ce_annu
     num_retired = len(valid_ages)
     pct_ever_retired = 100.0 * num_retired / max(1, config.num_outer)
 
-    median_age = np.nan if valid_ages.size == 0 else np.median(valid_ages)
+
+    median_age = np.nan if valid_ages.size == 0 else float(np.nanmedian(retirement_ages))
     p10 = np.nan if valid_ages.size == 0 else np.percentile(valid_ages, 10)
     p25 = np.nan if valid_ages.size == 0 else np.percentile(valid_ages, 25)
     p75 = np.nan if valid_ages.size == 0 else np.percentile(valid_ages, 75)
@@ -239,7 +240,7 @@ def display_final_results(retirement_ages, config, utility_ex_ante=None, ce_annu
     print(f"Probability retire before age 55: {prob_before_55:.2f}%")
     print(f"Probability retire before age 60: {prob_before_60:.2f}%")
     
-    # Display utility metrics if provided (calculated using EX-ANTE approach in main())
+
     if utility_ex_ante is not None:
         print("\n--- Utility Metrics (EX-ANTE) ---")
         print(f"Total expected utility: {utility_ex_ante:.2e}")
@@ -262,7 +263,7 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
     print("AMORTIZATION-BASED WITHDRAWAL STATISTICS")
     print("="*80)
     
-    # Collect all statistics
+
     all_withdrawals = []
     all_final_balances_nominal = final_bequest_nominal
     all_final_balances_real = final_bequest_real
@@ -289,7 +290,7 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
     all_withdrawals = np.array(all_withdrawals)
     threshold = config.amortization_min_spending_threshold * initial_spending
     
-    # Calculate statistics
+
     median_withdrawal = np.median(all_withdrawals)
     mean_withdrawal = np.mean(all_withdrawals)
     p10_withdrawal = np.percentile(all_withdrawals, 10)
@@ -301,7 +302,7 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
     
     pct_below_threshold = (total_below_threshold / total_years * 100) if total_years > 0 else 0
     
-    # Final balance statistics
+
     valid_balances_nominal = [b for b in all_final_balances_nominal if not np.isnan(b) and b >= 0]
     valid_balances_real = [b for b in all_final_balances_real if not np.isnan(b) and b >= 0]
     
@@ -337,7 +338,7 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
     print(f"\nAmortization Parameters:")
     expected_return = getattr(config, 'amortization_expected_return', 0.03)
     if expected_return is None:
-        expected_return = 0.03  # Fallback
+        expected_return = 0.03
     print(f"  Expected Real Return Used: {expected_return*100:.2f}%")
     print(f"  Method: Fixed Amortization (W = P * [r(1+r)^n] / [(1+r)^n - 1])")
     print(f"  Note: Withdrawal recalculated each year based on current principal")
@@ -348,7 +349,7 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
 
 def main():
     """Main execution function - run this to start the simulation"""
-    # #region agent log
+
     import time
     t_main_start = time.perf_counter()
     try:
@@ -360,12 +361,12 @@ def main():
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps({'id': 'log_main_start', 'timestamp': time.time() * 1000, 'location': 'main.py:330', 'message': 'main() function entry', 'data': {}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
     except Exception as log_err: pass
-    # #endregion
+
     print("\n" + "="*70)
     print("MODULAR LIFECYCLE RETIREMENT SIMULATION v7.0")
     print("="*70)
 
-    # Print Cython status
+
     if CYTHON_AVAILABLE:
         print("[OK] Cython module imported successfully (compiled extension)")
         print("[OK] Running with Cython acceleration (10-50x faster!)")
@@ -376,7 +377,7 @@ def main():
 
     print("="*70 + "\n")
 
-    # #region agent log
+
     try:
         import json
         import time
@@ -387,10 +388,10 @@ def main():
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps({'id': 'log_before_try', 'timestamp': time.time() * 1000, 'location': 'main.py:337', 'message': 'Before try block in main()', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'E'}) + '\n')
     except Exception as log_err: pass
-    # #endregion
+
 
     try:
-        # #region agent log
+
         try:
             import json
             import time
@@ -401,9 +402,9 @@ def main():
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_config_init', 'timestamp': time.time() * 1000, 'location': 'main.py:338', 'message': 'Creating SimulationConfig', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         config = SimulationConfig()
-        # #region agent log
+
         try:
             import json
             import time
@@ -414,9 +415,9 @@ def main():
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_config_created', 'timestamp': time.time() * 1000, 'location': 'main.py:384', 'message': 'SimulationConfig created', 'data': {'num_workers': config.num_workers, 'num_nested': config.num_nested, 'num_outer': config.num_outer}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         config.validate()
-        # #region agent log
+
         try:
             import json
             import time
@@ -427,10 +428,10 @@ def main():
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_config_validated', 'timestamp': time.time() * 1000, 'location': 'main.py:340', 'message': 'Config validated successfully', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
+
         params = config.params
 
-        # Log block bootstrap configuration
+
         if config.use_block_bootstrap:
             print(f"[INFO] Block Bootstrap ENABLED")
             print(f"  CSV Path: {config.bootstrap_csv_path}")
@@ -457,10 +458,10 @@ def main():
             print(f"[INFO] Utility calculations: DISABLED")
         print()
 
-        # Load bootstrap data once if block bootstrap is enabled
+
         bootstrap_data = None
         if config.use_block_bootstrap:
-            # #region agent log
+
             try:
                 import json
                 import time
@@ -471,10 +472,10 @@ def main():
                 with open(log_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps({'id': 'log_bootstrap_start', 'timestamp': time.time() * 1000, 'location': 'main.py:372', 'message': 'Loading bootstrap data', 'data': {'csv_path': config.bootstrap_csv_path}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
             except Exception as log_err: pass
-            # #endregion
+
             print("[INFO] Loading bootstrap data from CSV (one-time operation)...")
             bootstrap_data = load_bootstrap_data(config)
-            # #region agent log
+
             try:
                 import json
                 import time
@@ -485,7 +486,7 @@ def main():
                 with open(log_path, 'a', encoding='utf-8') as f:
                     f.write(json.dumps({'id': 'log_bootstrap_done', 'timestamp': time.time() * 1000, 'location': 'main.py:374', 'message': 'Bootstrap data loaded', 'data': {'success': bootstrap_data is not None, 'data_length': len(bootstrap_data[0]) if bootstrap_data else 0}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
             except Exception as log_err: pass
-            # #endregion
+
             if bootstrap_data is None:
                 logger.warning("Failed to load bootstrap data, falling back to parametric model")
                 config.use_block_bootstrap = False
@@ -498,10 +499,10 @@ def main():
         else:
             rng = np.random.default_rng()
         
-        # Calculate expected return for amortization if needed
+
         if config.use_amortization:
             if config.amortization_expected_return is None:
-                # Auto-calculate from historical data or model parameters
+
                 from .simulation import calculate_expected_return_from_data
                 monthly_returns = bootstrap_data[0] if bootstrap_data is not None else None
                 monthly_inflation = bootstrap_data[1] if bootstrap_data is not None else None
@@ -509,11 +510,12 @@ def main():
                     monthly_returns=monthly_returns,
                     monthly_inflation=monthly_inflation,
                     params=params if not config.use_block_bootstrap else None,
-                    mean_inflation=config.mean_inflation_geometric
+                    mean_inflation=config.mean_inflation_geometric,
+                    expected_real_annual_override=getattr(config, 'bootstrap_geometric_mean_override', None),
                 )
                 print(f"[INFO] Amortization expected real return (calculated): {config.amortization_expected_return*100:.2f}%")
             else:
-                # User-specified value
+
                 print(f"[INFO] Amortization expected real return (user-specified): {config.amortization_expected_return*100:.2f}%")
 
         required_principal_data, principal_lookup = build_required_principal_table(
@@ -524,17 +526,17 @@ def main():
 
         (retirement_ages, ever_retired, detailed_simulations,
          final_bequest_nominal, final_bequest_real, consumption_streams,
-         amortization_stats_list) = run_accumulation_simulations(
+         amortization_stats_list, earnings_nominal_list, earnings_real_list) = run_accumulation_simulations(
             config, params, principal_lookup, rng, bootstrap_data)
 
-        # Calculate utility metrics using EX-ANTE approach (matches Cederburg exactly)
-        # This properly captures CRRA risk aversion effects by calculating utility
-        # based on consumption distribution ACROSS simulations at each time t
+
+
+
         ce_values_dict = {}
         total_utilities_dict = {}
         
         if config.enable_utility_calculations:
-            # Only calculate utility if enabled and we have data
+
             if not consumption_streams or not final_bequest_real:
                 logger.warning("[WARNING] Utility calculations enabled but no consumption/bequest data available")
                 utilities = None
@@ -542,14 +544,14 @@ def main():
                 ce_values_dict = {}
                 total_utilities_dict = {}
             else:
-                # DEBUG: Check input data
+
                 logger.info("\n" + "="*80)
                 logger.info("[DEBUG MAIN] UTILITY CALCULATION INPUT DATA")
                 logger.info("="*80)
                 logger.info(f"Number of consumption streams: {len(consumption_streams)}")
                 logger.info(f"Number of bequests: {len(final_bequest_real)}")
                 
-                # Check consumption stream statistics
+
                 non_empty_streams = [cs for cs in consumption_streams if len(cs) > 0]
                 logger.info(f"Non-empty consumption streams: {len(non_empty_streams)}/{len(consumption_streams)}")
                 if len(non_empty_streams) > 0:
@@ -557,14 +559,14 @@ def main():
                     logger.info(f"Stream lengths: min={min(stream_lengths)}, max={max(stream_lengths)}, "
                                f"mean={np.mean(stream_lengths):.1f}, median={np.median(stream_lengths):.1f}")
                     
-                    # Check first few streams
+
                     for i in range(min(3, len(non_empty_streams))):
                         cs = non_empty_streams[i]
                         logger.info(f"  Stream {i}: length={len(cs)}, "
                                    f"first_5={[f'{c:.2f}' for c in cs[:5]]}, "
                                    f"mean={np.mean(cs):.2f}")
                 
-                # Check bequest statistics
+
                 logger.info(f"Bequest stats: min={min(final_bequest_real):.2f}, "
                            f"max={max(final_bequest_real):.2f}, "
                            f"mean={np.mean(final_bequest_real):.2f}, "
@@ -575,26 +577,26 @@ def main():
                 logger.info(f"  k_bequest={config.k_bequest}, theta={config.theta}, household_size={config.household_size}")
                 logger.info("="*80 + "\n")
                 
-                # Convert to dict format (matches Cederburg format for portfolio comparison)
-                portfolio_name = "Portfolio"  # Single portfolio simulation
+
+                portfolio_name = "Portfolio"
                 consumption_streams_dict = {portfolio_name: consumption_streams}
                 bequests_dict = {portfolio_name: final_bequest_real}
                 
-                # Calculate CE for current CRRA (matches Cederburg's calculate_ce_for_crra)
+
                 from .utility import calculate_ce_for_crra
                 ce_values_dict = calculate_ce_for_crra(
                     consumption_streams_dict, bequests_dict, config.gamma, config.beta, 
                     config.k_bequest, config.theta, config.household_size
                 )
                 
-                # Calculate total utility for current CRRA (matches Cederburg's calculate_total_utility)
+
                 from .utility import calculate_total_utility_ex_ante
                 total_utilities_dict = calculate_total_utility_ex_ante(
                     consumption_streams_dict, bequests_dict, config.gamma, config.beta, 
                     config.k_bequest, config.theta, config.household_size
                 )
                 
-                # Extract values for single portfolio
+
                 ce_ex_ante_monthly = ce_values_dict[portfolio_name][0] if portfolio_name in ce_values_dict else 0.0
                 total_utility_ex_ante = total_utilities_dict[portfolio_name] if portfolio_name in total_utilities_dict else 0.0
                 
@@ -606,16 +608,16 @@ def main():
                 logger.info(f"CE (annual, real dollars): ${ce_ex_ante_monthly * 12.0:,.2f}")
                 logger.info("="*80 + "\n")
                 
-                # For display purposes, create lists with single values
-                utilities = [total_utility_ex_ante]  # Single value
-                # Note: ce_ex_ante_monthly is MONTHLY, convert to annual for display
-                certainty_equivalents_annual = [ce_ex_ante_monthly * 12.0]  # Convert monthly to annual
+
+                utilities = [total_utility_ex_ante]
+
+                certainty_equivalents_annual = [ce_ex_ante_monthly * 12.0]
                 
-                # Extract utility and CE for display_final_results
+
                 utility_for_display = total_utility_ex_ante
                 ce_annual_for_display = ce_ex_ante_monthly * 12.0
         else:
-            # Utility calculations disabled
+
             utilities = None
             certainty_equivalents_annual = None
             utility_for_display = None
@@ -626,7 +628,7 @@ def main():
             utility_ex_ante=utility_for_display,
             ce_annual=ce_annual_for_display)
         
-        # Display amortization statistics if enabled
+
         if config.use_amortization:
             display_amortization_stats(amortization_stats_list, final_bequest_nominal, 
                                       final_bequest_real, config)
@@ -636,7 +638,7 @@ def main():
                 detailed_simulations, 'detailed_lifecycle_paths.csv', config.output_directory,
                 subdirectory='Simulation Data')
             
-            # Export utility metrics
+
             if utilities and certainty_equivalents_annual:
                 utility_data = {
                     'Utility': utilities,
@@ -651,24 +653,24 @@ def main():
                         certainty_equivalents_annual=certainty_equivalents_annual if certainty_equivalents_annual else None,
                         amortization_stats_list=amortization_stats_list if config.use_amortization else None)
 
-        # Calculate and display CE consumption (matches Cederburg output format)
+
         if config.enable_utility_calculations:
             print("\n" + "=" * 80)
             print("CALCULATING CERTAINTY EQUIVALENT CONSUMPTION")
             print("=" * 80)
             
             if ce_values_dict:
-                # Print summary of CE values (dollar amounts) - matches Cederburg format exactly
+
                 print("\nCertainty Equivalent Consumption (Annual Real $ - today's purchasing power):")
                 print(f"{'Portfolio':<50} {'CE ($)':>20}")
                 print("-" * 72)
                 for name, ce_dollars_list in ce_values_dict.items():
-                    ce_value_annual = ce_dollars_list[0] * 12.0 if len(ce_dollars_list) > 0 else 0.0  # Convert monthly to annual
+                    ce_value_annual = ce_dollars_list[0] * 12.0 if len(ce_dollars_list) > 0 else 0.0
                     print(f"{name:<50} ${ce_value_annual:>19,.2f}")
             
-            # Note: Equivalent Savings Rate calculation requires multiple portfolios for comparison
-            # Since we only have one portfolio, we skip this calculation (matches Cederburg's logic
-            # where it compares portfolios, not CRRA values)
+
+
+
         else:
             print("\n[INFO] Utility calculations are DISABLED (enable_utility_calculations=False)")
             utilities = None
@@ -683,7 +685,7 @@ def main():
         logger.error(f"An error occurred: {e}")
         import traceback
         traceback.print_exc()
-        # #region agent log
+
         try:
             import json
             import time
@@ -694,8 +696,8 @@ def main():
             with open(log_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps({'id': 'log_main_error', 'timestamp': time.time() * 1000, 'location': 'main.py:555', 'message': 'Exception in main()', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'D'}) + '\n')
         except Exception as log_err: pass
-        # #endregion
-    # #region agent log
+
+
     t_main_end = time.perf_counter()
     try:
         import json
@@ -706,7 +708,7 @@ def main():
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps({'id': 'log_main_total_time', 'timestamp': time.time() * 1000, 'location': 'main.py:677', 'message': 'main() total execution time', 'data': {'duration_ms': (t_main_end - t_main_start) * 1000}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
     except: pass
-    # #endregion
+
 
 
 if __name__ == "__main__":

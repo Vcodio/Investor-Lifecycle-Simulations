@@ -43,6 +43,7 @@ env/
 output/*.png
 output/*.pdf
 output/*.csv
+Lifecycle Outputs/
 
 # Build artifacts (compiled Cython modules)
 build/**/*.pyd
@@ -65,4 +66,8 @@ backups/
 # Temporary files
 *.tmp
 *.log
+
+# Profiling files (can be very large)
+*.prof
+*.pstats
 

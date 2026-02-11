@@ -13,5 +13,11 @@ streamlit>=1.28.0
 
 # Optional: Cython for performance acceleration
 # Uncomment if you want to compile Cython extensions
-# cython>=0.29.0
+cython>=0.29.0
+
+# Optional: Plotly for interactive visualizations
+plotly>=5.0.0
+
+# Parametric HMM scripts (Hidden Markov Models)
+hmmlearn>=0.3.0
 

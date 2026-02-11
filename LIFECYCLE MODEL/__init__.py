@@ -14,12 +14,12 @@ import os
 import importlib.util
 import importlib
 
-# Set up package structure for multiprocessing compatibility
-# This ensures worker processes can import modules using relative imports
+
+
 _package_dir = os.path.dirname(os.path.abspath(__file__))
 _parent_dir = os.path.dirname(_package_dir)
 
-# Add parent and build directories to path for multiprocessing workers
+
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 
@@ -27,12 +27,12 @@ _build_dir = os.path.join(_parent_dir, 'build')
 if os.path.exists(_build_dir) and _build_dir not in sys.path:
     sys.path.insert(0, _build_dir)
 
-# Add current directory to path so modules can be imported
+
 if _package_dir not in sys.path:
     sys.path.insert(0, _package_dir)
 
-# Set up import hook to make modules importable for multiprocessing
-# This allows Python's pickle system to import lifecycle_model.simulation
+
+
 class PackageImportFinder:
     """Import finder that makes dynamically loaded modules importable"""
     def __init__(self, package_dir):
@@ -49,14 +49,14 @@ class PackageImportFinder:
                     return spec
         return None
 
-# Install the import finder
+
 if 'lifecycle_model' not in [f.name for f in sys.meta_path if hasattr(f, 'name')]:
     finder = PackageImportFinder(_package_dir)
     finder.package_name = 'lifecycle_model'
     sys.meta_path.insert(0, finder)
 
-# CRITICAL: Create package stub in sys.modules IMMEDIATELY so pickle can find it
-# This must exist BEFORE pickle tries to import lifecycle_model.simulation
+
+
 import types
 if 'lifecycle_model' not in sys.modules:
     package_module = types.ModuleType('lifecycle_model')
