@@ -1,6 +1,6 @@
 # Lifecycle-Retirement-Simulation
 
-**Version 6.3** - Cythonized with Block Bootstrap Support
+**Version 7** - Cythonized with Block Bootstrap Support
 
 This script is designed to simulate possibility of outcomes to not only simulate how robust your portfolio is at sustaining withdrawals in retirement, but at what age you will be able to retire given an uncertain labor income. 
 
@@ -100,3 +100,4 @@ This change will require major overhauls on how we measure "success", and how we
 13. Adding inflation indexed bond
 14. Adding Glide path. Perhaps contingent on how far investor is from our estimated "FI/RE" number.
 15. Upgrade to simulate constituent assets individually, rather than simulating the entire portfolio.
+
