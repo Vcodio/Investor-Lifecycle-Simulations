@@ -105,9 +105,12 @@ def find_equivalent_savings_rate(target_utility, consumption_streams_baseline, b
         Equivalent savings rate for test scenario
     """
 
-    current_utility = calculate_total_utility_ex_ante(
-        consumption_streams_test, bequests_test, gamma, beta, k_bequest, theta, household_size
+    util_dict = calculate_total_utility_ex_ante(
+        {'scenario': consumption_streams_test},
+        {'scenario': bequests_test},
+        gamma, beta, k_bequest, theta, household_size,
     )
+    current_utility = util_dict['scenario']
     
 
     equiv_rate = calculate_equivalent_savings_rate_scaling(

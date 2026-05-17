@@ -216,15 +216,20 @@ def plot_cumulative_retirement_probability(retirement_ages, config, median_age, 
     if not HAS_MATPLOTLIB:
         return
 
-    valid_retirement_ages = retirement_ages[~np.isnan(retirement_ages)]
-    if valid_retirement_ages.size == 0:
+    ra = np.asarray(retirement_ages, dtype=float)
+    sorted_valid = np.sort(ra[~np.isnan(ra)])
+    if sorted_valid.size == 0:
         return
 
-    sorted_ages = np.sort(valid_retirement_ages)
-    cumulative_prob = np.arange(1, len(sorted_ages) + 1) / num_outer * 100
+    denom = float(max(1, int(num_outer)))
+    unique_ages = np.unique(sorted_valid)
+    cumulative_prob = np.array([
+        np.sum((~np.isnan(ra)) & (ra <= a)) / denom * 100.0
+        for a in unique_ages
+    ], dtype=float)
 
     plt.figure(figsize=(12, 7))
-    plt.plot(sorted_ages, cumulative_prob, color='lime', marker='o',
+    plt.plot(unique_ages, cumulative_prob, color='lime', marker='o',
             linestyle='-', markersize=4, alpha=0.8, linewidth=2)
 
     if config.include_social_security:
@@ -237,7 +242,7 @@ def plot_cumulative_retirement_probability(retirement_ages, config, median_age, 
         plt.axvline(x=median_age, color='white', linestyle='--',
                    label=f'Median Retirement Age ({median_age:.1f})', linewidth=2)
 
-    plt.title("Cumulative Probability of Retiring by Age", fontsize=14, color='white')
+    plt.title("Retire by age", fontsize=14, color='white')
     plt.xlabel("Age", color='white', fontsize=12)
     plt.ylabel("Cumulative Probability (%)", color='white', fontsize=12)
     plt.ylim(0, 100)
@@ -423,7 +428,7 @@ def plot_amortization_withdrawal_over_time(amortization_stats_list, config, outp
             continue
         
         if initial_spending is None:
-            initial_spending = stats.get('initial_spending_real', config.spending_real)
+            initial_spending = config.spending_real if stats.get('initial_spending_real') is None else stats['initial_spending_real']
         
         withdrawals = stats['withdrawals']
         for year_idx, withdrawal in enumerate(withdrawals):
@@ -451,7 +456,7 @@ def plot_amortization_withdrawal_over_time(amortization_stats_list, config, outp
     ax.plot(years, medians, 'o-', color='yellow', linewidth=2, markersize=6, label='Median')
     
 
-    if initial_spending:
+    if initial_spending is not None:
         ax.axhline(y=initial_spending, color='red', linestyle='--', linewidth=2, 
                   label=f'Initial Spending (${initial_spending:,.0f})')
 
@@ -496,7 +501,7 @@ def plot_amortization_below_threshold_percentage(amortization_stats_list, config
             continue
         
         if initial_spending is None:
-            initial_spending = stats.get('initial_spending_real', config.spending_real)
+            initial_spending = config.spending_real if stats.get('initial_spending_real') is None else stats['initial_spending_real']
         
         threshold = config.amortization_min_spending_threshold * initial_spending
         withdrawals = stats['withdrawals']
@@ -674,7 +679,7 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
             continue
         
         if initial_spending is None:
-            initial_spending = stats.get('initial_spending_real', config.spending_real)
+            initial_spending = config.spending_real if stats.get('initial_spending_real') is None else stats['initial_spending_real']
         
         all_withdrawals.extend(stats['withdrawals'])
     
@@ -701,7 +706,7 @@ def plot_amortization_withdrawal_distribution(amortization_stats_list, config, o
     ax1 = fig.add_subplot(gs[0, 0])
     n_bins = min(80, len(np.unique(all_withdrawals)))
     counts, bins, patches = ax1.hist(all_withdrawals, bins=n_bins, color='skyblue', edgecolor='none', alpha=0.7)
-    if initial_spending:
+    if initial_spending is not None:
         ax1.axvline(x=initial_spending, color='red', linestyle='--', linewidth=2,
                    label=f'Initial Spending: ${initial_spending:,.0f}')
         threshold = config.amortization_min_spending_threshold * initial_spending
@@ -759,7 +764,7 @@ Threshold ({config.amortization_min_spending_threshold*100:.0f}%): ${config.amor
         widths=0.6,
         showfliers=False,
     )
-    if initial_spending:
+    if initial_spending is not None:
         ax3.axhline(y=initial_spending, color='red', linestyle='--', linewidth=2,
                    label=f'Initial: ${initial_spending:,.0f}')
         threshold = config.amortization_min_spending_threshold * initial_spending
@@ -779,7 +784,7 @@ Threshold ({config.amortization_min_spending_threshold*100:.0f}%): ${config.amor
     capped_withdrawals = np.clip(all_withdrawals, 0, p99_w)
     n_bins2 = min(60, len(np.unique(capped_withdrawals)))
     ax4.hist(capped_withdrawals, bins=n_bins2, color='lightcoral', edgecolor='none', alpha=0.7)
-    if initial_spending:
+    if initial_spending is not None:
         ax4.axvline(x=initial_spending, color='red', linestyle='--', linewidth=2,
                    label=f'Initial: ${initial_spending:,.0f}')
         threshold = config.amortization_min_spending_threshold * initial_spending

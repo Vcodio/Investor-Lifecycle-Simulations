@@ -4,6 +4,7 @@ Block Bootstrap Module
 This module provides functions for block bootstrap sampling of historical returns and inflation data.
 """
 
+import os
 import numpy as np
 import pandas as pd
 import logging
@@ -247,11 +248,14 @@ class BlockBootstrap:
 
 
 
-_bootstrap_data_cache = None
+_bootstrap_data_cache = {}
 
 def load_bootstrap_data(config):
     """
     Load bootstrap data once and cache it globally.
+    
+    Cache is keyed by CSV path, file mtime, and column names so switching inputs in the app
+    picks up the correct series instead of reusing stale returns.
     
     Args:
         config: SimulationConfig instance
@@ -264,16 +268,25 @@ def load_bootstrap_data(config):
     if not config.use_block_bootstrap:
         return None
     
-
-    if _bootstrap_data_cache is not None:
-        return _bootstrap_data_cache
+    csv_path = os.path.abspath(os.path.expanduser(str(config.bootstrap_csv_path)))
+    try:
+        mtime = os.path.getmtime(csv_path)
+    except OSError:
+        mtime = None
+    cache_key = (
+        csv_path,
+        mtime,
+        str(config.portfolio_column_name),
+        str(config.inflation_column_name),
+    )
+    if cache_key in _bootstrap_data_cache:
+        return _bootstrap_data_cache[cache_key]
     
     try:
 
         try:
             import json
             import time
-            import os
             log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
@@ -287,12 +300,11 @@ def load_bootstrap_data(config):
             config.inflation_column_name
         )
         
-        _bootstrap_data_cache = (monthly_returns, monthly_inflation)
+        _bootstrap_data_cache[cache_key] = (monthly_returns, monthly_inflation)
 
         try:
             import json
             import time
-            import os
             log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
@@ -300,7 +312,7 @@ def load_bootstrap_data(config):
                 f.write(json.dumps({'id': 'log_bootstrap_load_success', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:261', 'message': 'Bootstrap data loaded successfully', 'data': {'returns_len': len(monthly_returns), 'inflation_len': len(monthly_inflation)}}) + '\n')
         except Exception as log_err: pass
 
-        return _bootstrap_data_cache
+        return _bootstrap_data_cache[cache_key]
         
     except Exception as e:
         logger.error(f"Failed to load bootstrap data: {e}")
@@ -308,7 +320,6 @@ def load_bootstrap_data(config):
         try:
             import json
             import time
-            import os
             import traceback
             log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)

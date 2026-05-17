@@ -124,10 +124,14 @@ def build_required_principal_table(config, params, bootstrap_data=None):
         principal_nominal = calculate_nominal_value(
             principal_real, config.initial_age, age, mean_inflation_arithmetic)
 
+        # Align amortization horizon with the simulation engine when stochastic mortality is on.
+        use_stoch = getattr(config, 'use_stochastic_mortality', False)
+        death_horizon = 120 if use_stoch else config.death_age
+
         # Calculate actual withdrawal amount - use amortization if enabled
         if config.use_amortization:
             # Calculate remaining years
-            remaining_years = config.death_age - age
+            remaining_years = death_horizon - age
             
             # Get expected return for amortization
             expected_return = getattr(config, 'amortization_expected_return', None)
@@ -176,7 +180,7 @@ def build_required_principal_table(config, params, bootstrap_data=None):
             'age': age,
             'principal_real': principal_real,
             'principal_nominal': principal_nominal,
-            'spending_real': config.spending_real,
+            'spending_real': annual_withdrawal_real if config.use_amortization else config.spending_real,
             'spending_nominal': nominal_spending,
             'net_withdrawal_real': net_withdrawal_real,
             'net_withdrawal_nominal': net_withdrawal_nominal,
@@ -305,7 +309,8 @@ def display_amortization_stats(amortization_stats_list, final_bequest_nominal, f
             continue
         
         if initial_spending is None:
-            initial_spending = stats.get('initial_spending_real', config.spending_real)
+            _isr = stats.get('initial_spending_real')
+            initial_spending = config.spending_real if _isr is None else _isr
         
         withdrawals = stats.get('withdrawals', [])
         all_withdrawals.extend(withdrawals)
@@ -555,7 +560,8 @@ def main():
 
         (retirement_ages, ever_retired, detailed_simulations,
          final_bequest_nominal, final_bequest_real, consumption_streams,
-         amortization_stats_list, earnings_nominal_list, earnings_real_list) = run_accumulation_simulations(
+         amortization_stats_list, earnings_nominal_list, earnings_real_list,
+         path_end_ages) = run_accumulation_simulations(
             config, params, principal_lookup, rng, bootstrap_data)
 
 

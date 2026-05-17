@@ -1294,7 +1294,11 @@ def main():
                 console.print(f"\n[yellow]Regime 3 (Extreme Crisis) detected - filtering for extreme drawdown periods only[/yellow]")
                 
                 # Calculate cumulative price and drawdown from peak
-                cumulative_price = 100.0 * np.cumprod(1 + regime_returns)
+                r_dd = np.asarray(regime_returns, dtype=float)
+                if np.nanpercentile(np.abs(r_dd), 95) > 0.5:
+                    cumulative_price = 100.0 * np.cumprod(1.0 + r_dd)
+                else:
+                    cumulative_price = 100.0 * np.exp(np.cumsum(r_dd))
                 running_peak = np.maximum.accumulate(cumulative_price)
                 drawdown_from_peak = (running_peak - cumulative_price) / running_peak
                 
@@ -1342,7 +1346,7 @@ def main():
             if result is not None:
                 results.append(result)
             else:
-            progress.update(task, advance=1)
+                progress.update(task, advance=1)
     
     if len(results) == 0:
         console.print("[red]No regimes were successfully fitted[/red]")

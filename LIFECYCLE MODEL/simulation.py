@@ -103,16 +103,80 @@ def load_mortality_table(path, base_dir=None, sex='male'):
             qx_col = 'qx'
         else:
             raise ValueError(f"Mortality table must have 'qx' or 'qx_male'/'qx_female'. Found: {list(df.columns)}")
-        qx_arr = np.ones(121, dtype=np.float64)
+        qx_arr = np.full(121, np.nan, dtype=np.float64)
         for _, row in df.iterrows():
             age = int(row['age'])
             if 0 <= age <= 120:
                 qx_arr[age] = float(row[qx_col])
+        # Period tables often end at age 119 with q_x = 1; simulation uses open interval through age 120.
+        if np.isnan(qx_arr[120]) and not np.isnan(qx_arr[119]):
+            qx_arr[120] = 1.0
+        if np.any(np.isnan(qx_arr)):
+            missing = np.where(np.isnan(qx_arr))[0].tolist()
+            raise ValueError(
+                "Mortality table has missing ages for 0..120 after loading CSV. "
+                f"Missing age indices (examples): {missing[:10]}{'...' if len(missing) > 10 else ''}. "
+                "Fill all ages or use a complete SSA-style table."
+            )
         _mortality_table_cache[cache_key] = qx_arr
         return qx_arr
     except Exception as e:
         logger.warning(f"Failed to load mortality table from {path}: {e}")
         raise
+
+
+def sample_stochastic_death_ages_from_qx(qx_arr, initial_age_years, n_samples, rng=None):
+    """
+    Monte Carlo distribution of age at death using the same monthly process as
+    run_single_accumulation_simulation when stochastic mortality is on.
+
+    At each month ``m`` starting from ``int(initial_age_years * 12)``, survival draws
+    Bernoulli ``p = 1 - (1 - q_x)^(1/12)`` with ``q_x`` from the period table at age ``m // 12``.
+    The horizon matches the engine: months through ``120 * 12`` inclusive.
+    Paths still alive at the horizon are recorded as age ``120.0``.
+
+    Parameters
+    ----------
+    qx_arr : array-like
+        Length-121 array: annual death probability ``q_x`` for ages 0..120.
+    initial_age_years : float
+        Starting age in years (same convention as ``config.initial_age``).
+    n_samples : int
+        Number of independent draws.
+    rng : numpy.random.Generator, optional
+        Random generator for reproducibility.
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(n_samples,)``, ages at death in fractional years ``month / 12``.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    qx_np = np.asarray(qx_arr, dtype=np.float64).reshape(-1)
+    if qx_np.size < 121:
+        raise ValueError(f"qx_arr must have length >= 121 (ages 0..120); got {qx_np.size}")
+
+    start_m = int(initial_age_years * 12)
+    max_m = 120 * 12
+    out = np.empty(int(n_samples), dtype=np.float64)
+    if start_m > max_m:
+        out.fill(float(initial_age_years))
+        return out
+
+    for i in range(int(n_samples)):
+        age_m = start_m
+        while age_m <= max_m:
+            age_y = age_m // 12
+            qx = float(qx_np[min(int(age_y), 120)])
+            monthly_death_prob = 1.0 - (1.0 - qx) ** (1.0 / 12.0)
+            if rng.random() < monthly_death_prob:
+                out[i] = age_m / 12.0
+                break
+            age_m += 1
+        else:
+            out[i] = 120.0
+    return out
 
 
 def ensure_mortality_loaded(config):
@@ -686,6 +750,7 @@ def check_success_rate_worker(principal, retirement_age, num_sims, seed_offset,
 
 def check_success_rate(principal, retirement_age, num_nested_sims, config, params, bootstrap_data=None):
     """Check success rate for a given principal and retirement age"""
+    t_check_start = time.perf_counter()
 
     if config.num_workers <= 1 or num_nested_sims < 100:
         res = check_success_rate_worker(principal, retirement_age, num_nested_sims,
@@ -1050,7 +1115,7 @@ except:
                     if sims_this_worker > 0:
                         futures.append(executor.submit(check_success_rate_worker,
                                                          principal, retirement_age,
-                                                         sims_this_worker, i, config, params, None))
+                                                         sims_this_worker, i, config, params, bootstrap_data))
 
                 results = [f.result() for f in futures]
         except (BrokenProcessPool, ModuleNotFoundError, ImportError) as e:
@@ -1188,7 +1253,9 @@ def create_simulation_record(sim, age_in_months, is_retired, portfolio,
         'REQUIRED_NOMINAL_PRINCIPAL': principal_lookup.get(
             current_age_years, {}).get('principal_nominal', np.nan),
         'NOMINAL_DESIRED_CONSUMPTION': current_monthly_spending_nominal * 12.0,
-        'REAL_DESIRED_CONSUMPTION': config.spending_real,
+        'REAL_DESIRED_CONSUMPTION': (
+            (current_monthly_spending_nominal * 12.0 / cumulative_inflation_since_start)
+            if is_retired else config.spending_real),
         'ANNUAL_INFLATION': (annual_inflation_draw
                             if (age_in_months % 12) == 0 else np.nan),
         'CUMULATIVE_INFLATION': cumulative_inflation_since_start,
@@ -1200,7 +1267,8 @@ def create_simulation_record(sim, age_in_months, is_retired, portfolio,
             current_annual_ss_nominal
             if is_retired and current_age_years >= config.social_security_start_age
             else np.nan),
-        'SAVINGS_RATE': savings_rate_for_month * 12.0 if not is_retired else np.nan,
+        # Fraction of monthly labor income saved each month (same units as config.savings_rate).
+        'SAVINGS_RATE': savings_rate_for_month if not is_retired else np.nan,
         'SALARY_REAL': (current_monthly_income_real * 12.0
                        if not is_retired else np.nan),
         'SALARY_NOMINAL': (
@@ -1244,7 +1312,7 @@ def run_single_accumulation_simulation(sim, config, params, principal_lookup, rn
     
 
     amortization_stats = {
-        'initial_spending_real': config.spending_real,
+        'initial_spending_real': None,
         'withdrawals': [],
         'withdrawals_nominal': [],
         'principal_at_year_start': [],
@@ -1440,6 +1508,9 @@ def run_single_accumulation_simulation(sim, config, params, principal_lookup, rn
                     current_monthly_spending_nominal = current_annual_spending_nominal / 12.0
                     
 
+                    if amortization_stats['initial_spending_real'] is None:
+                        amortization_stats['initial_spending_real'] = annual_withdrawal_real
+
                     amortization_stats['withdrawals'].append(annual_withdrawal_real)
                     amortization_stats['withdrawals_nominal'].append(annual_withdrawal_nominal)
                     amortization_stats['principal_at_year_start'].append(principal_at_year_start)
@@ -1447,7 +1518,8 @@ def run_single_accumulation_simulation(sim, config, params, principal_lookup, rn
                     amortization_stats['total_years'] += 1
                     
 
-                    min_threshold = config.amortization_min_spending_threshold * amortization_stats['initial_spending_real']
+                    min_threshold = (
+                        config.amortization_min_spending_threshold * amortization_stats['initial_spending_real'])
                     if annual_withdrawal_real < min_threshold:
                         amortization_stats['below_threshold_count'] += 1
                 else:
@@ -1508,7 +1580,8 @@ def run_single_accumulation_simulation(sim, config, params, principal_lookup, rn
 
             if config.enable_utility_calculations:
 
-                consumption_real = net_withdrawal / cumulative_inflation_since_start
+                consumption_real = (
+                    current_monthly_spending_nominal / cumulative_inflation_since_start)
 
                 consumption = consumption_real / np.sqrt(config.household_size)
                 consumption_stream.append(consumption)
@@ -1538,8 +1611,15 @@ def run_single_accumulation_simulation(sim, config, params, principal_lookup, rn
     final_bequest_nominal = portfolio
     final_bequest_real = final_bequest_nominal / cumulative_inflation_since_start
 
+    raw_end = age_in_months / 12.0
+    if getattr(config, 'use_stochastic_mortality', False):
+        path_end_age_years = 120.0 if raw_end >= 119.999 else float(raw_end)
+    else:
+        path_end_age_years = float(raw_end)
+
     return {
         'retirement_age': retirement_age,
+        'path_end_age_years': path_end_age_years,
         'final_bequest_nominal': final_bequest_nominal,
         'final_bequest_real': final_bequest_real,
         'simulation_record': current_sim_record,
@@ -1563,6 +1643,7 @@ def run_accumulation_simulations(config, params, principal_lookup, rng, bootstra
 
     retirement_ages = np.full(config.num_outer, np.nan)
     ever_retired = np.zeros(config.num_outer, dtype=bool)
+    path_end_ages = np.full(config.num_outer, np.nan, dtype=np.float64)
     detailed_simulations_to_export = []
     all_final_bequest_nominal = []
     all_final_bequest_real = []
@@ -1587,6 +1668,7 @@ def run_accumulation_simulations(config, params, principal_lookup, rng, bootstra
         )
 
         retirement_ages[sim] = result['retirement_age']
+        path_end_ages[sim] = result['path_end_age_years']
         if not np.isnan(result['retirement_age']):
             ever_retired[sim] = True
 
@@ -1646,5 +1728,6 @@ def run_accumulation_simulations(config, params, principal_lookup, rng, bootstra
 
     return (retirement_ages, ever_retired, detailed_simulations_to_export,
             all_final_bequest_nominal, all_final_bequest_real, all_consumption_streams,
-            all_amortization_stats, all_earnings_nominal, all_earnings_real)
+            all_amortization_stats, all_earnings_nominal, all_earnings_real,
+            path_end_ages)
 

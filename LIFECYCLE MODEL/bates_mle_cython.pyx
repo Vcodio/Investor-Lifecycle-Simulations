@@ -13,6 +13,8 @@ cimport cython
 # Numpy must be initialized
 np.import_array()
 
+_warned_neg_ll_placeholder = False
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.cdivision(True)
@@ -31,6 +33,17 @@ def neg_log_likelihood_c(params, returns):
     Returns:
         double: Negative log-likelihood
     """
+    global _warned_neg_ll_placeholder
+    if not _warned_neg_ll_placeholder:
+        import warnings
+        warnings.warn(
+            "bates_mle_cython.neg_log_likelihood_c is a stub returning a constant; "
+            "use the Python Bates likelihood path for estimation.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        _warned_neg_ll_placeholder = True
+
     # This is a placeholder - the actual implementation would be more complex
     # For now, we'll let the Python fallback handle it
     # This module exists primarily for import compatibility

@@ -238,10 +238,14 @@ def compute_empirical_moments(returns):
     skew = stats.skew(returns, bias=False) if len(returns) >= 3 else 0.0
     kurt = stats.kurtosis(returns, fisher=True, bias=False) if len(returns) >= 4 else 0.0  # Excess kurtosis
     
-    # Compute max drawdown from cumulative returns
-    cumulative_returns = np.cumprod(1.0 + returns)
-    peak_series = np.maximum.accumulate(cumulative_returns)
-    drawdowns = (cumulative_returns - peak_series) / peak_series
+    # Wealth drawdown: support simple returns or log returns (typical |log r| < 0.5).
+    r = np.asarray(returns, dtype=float)
+    if np.nanpercentile(np.abs(r), 95) > 0.5:
+        wealth = np.cumprod(1.0 + r)
+    else:
+        wealth = np.exp(np.cumsum(r))
+    peak_series = np.maximum.accumulate(wealth)
+    drawdowns = (wealth - peak_series) / peak_series
     max_dd = np.min(drawdowns) if len(drawdowns) > 0 else 0.0
     
     return {

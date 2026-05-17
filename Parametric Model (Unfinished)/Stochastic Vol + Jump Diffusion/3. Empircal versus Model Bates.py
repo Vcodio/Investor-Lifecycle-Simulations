@@ -155,17 +155,16 @@ def load_empirical_data(csv_path):
     
     # Get returns column
     if 'Total Nominal Return (%)' in df.columns:
-        returns = df['Total Nominal Return (%)'].values / 100.0
+        raw = df['Total Nominal Return (%)'].values / 100.0
+        # Some pipelines export this column already as log returns; avoid log1p twice.
+        if np.nanpercentile(np.abs(raw), 99) < 0.35:
+            returns = raw
+        else:
+            returns = np.log1p(raw)
     elif 'returns' in df.columns:
         returns = df['returns'].values
     else:
         raise ValueError("Could not find returns column")
-    
-    # Convert to log returns: "Total Nominal Return (%)" is simple return (decimal).
-    # For consistency with Bates model (which outputs log returns), convert.
-    returns = np.log(1.0 + returns)
-    
-    # Get regime IDs if available
     regime_col = None
     for col in df.columns:
         if 'regime' in col.lower() or 'Regime' in col:

@@ -25,11 +25,11 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
-    try:
-        import matplotlib.pyplot as plt
-        HAS_MATPLOTLIB = True
-    except ImportError:
-        HAS_MATPLOTLIB = False
+try:
+    import matplotlib.pyplot as plt
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
@@ -204,6 +204,38 @@ if 'simulation_results' not in st.session_state:
 if 'config' not in st.session_state:
     st.session_state.config = None
 
+
+def _bootstrap_uploads_dir():
+    upload_dir = os.path.join(parent_dir, "data", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    return upload_dir
+
+
+def _save_bootstrap_csv_upload(uploaded_file, date_col, portfolio_col, inflation_col):
+    """Normalize columns and persist an uploaded bootstrap CSV."""
+    df = pd.read_csv(uploaded_file)
+    missing = [c for c in (date_col, portfolio_col, inflation_col) if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing column(s): {', '.join(missing)}")
+
+    out = df[[date_col, portfolio_col, inflation_col]].copy()
+    if date_col != "Date":
+        out = out.rename(columns={date_col: "Date"})
+
+    out["Date"] = pd.to_datetime(out["Date"], format="mixed", errors="coerce")
+    if out["Date"].isna().all():
+        raise ValueError("Could not parse any dates in the selected date column.")
+    out = out.dropna(subset=["Date"])
+
+    safe_name = os.path.basename(getattr(uploaded_file, "name", "bootstrap_upload.csv") or "bootstrap_upload.csv")
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in safe_name)
+    if not safe_name.lower().endswith(".csv"):
+        safe_name += ".csv"
+    out_path = os.path.join(_bootstrap_uploads_dir(), safe_name)
+    out.to_csv(out_path, index=False)
+    return os.path.abspath(out_path)
+
+
 def create_config_from_sidebar():
     """Create SimulationConfig from sidebar inputs"""
     config = SimulationConfig()
@@ -255,11 +287,20 @@ def create_config_from_sidebar():
         default_nested = max(50, min(_nn, 10000))
         config.num_nested = st.number_input("Number of Nested Simulations", min_value=50, max_value=10000, value=default_nested, step=50, help="Used repeatedly during the required-principal search. This is usually the biggest runtime driver.", key="cfg_sim_num_nested")
         try:
-            _st = float(config.success_target) if config.success_target is not None else 0.95
+            _st_pct = float(config.success_target) * 100.0 if config.success_target is not None else 95.0
         except (TypeError, ValueError):
-            _st = 0.95
-        _st = max(0.5, min(1.0, _st))
-        config.success_target = st.slider("Success Target (%)", min_value=0.5, max_value=1.0, value=_st, step=0.01, format="%.2f", key="cfg_sim_success_target")
+            _st_pct = 95.0
+        _st_pct = int(round(max(50.0, min(100.0, _st_pct))))
+        pct_val = st.slider(
+            "Success Target (%)",
+            min_value=50,
+            max_value=100,
+            value=_st_pct,
+            step=1,
+            help="Percentage of nested retirement paths that must succeed when sizing required principal.",
+            key="cfg_sim_success_target",
+        )
+        config.success_target = pct_val / 100.0
         seed_display = int(config.seed) if config.seed is not None else 0
         seed_input = st.number_input("Random Seed (0 = random)", min_value=0, value=seed_display, step=1, help="Use 0 for random seed", key="cfg_sim_seed")
         config.seed = None if seed_input == 0 else int(seed_input)
@@ -274,9 +315,128 @@ def create_config_from_sidebar():
         config.use_block_bootstrap = st.checkbox("Use Block Bootstrap", value=config.use_block_bootstrap, help="Use historical data blocks instead of parametric model")
         
         if config.use_block_bootstrap:
-            config.bootstrap_csv_path = st.text_input("Bootstrap CSV Path", value=st.session_state.get("_lifecycle_autofill_path", config.bootstrap_csv_path))
-            config.portfolio_column_name = st.text_input("Portfolio Column Name", value=st.session_state.get("_lifecycle_autofill_portfolio_col", config.portfolio_column_name))
-            config.inflation_column_name = st.text_input("Inflation Column Name", value=st.session_state.get("_lifecycle_autofill_inflation_col", config.inflation_column_name))
+            st.caption(
+                "CSV format: a **Date** column (daily), a **portfolio index** column "
+                "(cumulative value levels, not % returns), and an **inflation index** column. "
+                "See `data/TFP - Block Bootstrap.csv` for an example. "
+                "We recommend building the series in "
+                "[Testfolio](https://testfol.io/) (export chart data) and aligning column names below."
+            )
+            bootstrap_source = st.radio(
+                "Bootstrap data",
+                options=["File path", "Upload CSV"],
+                horizontal=True,
+                key="cfg_bootstrap_data_source",
+            )
+
+            if bootstrap_source == "Upload CSV":
+                uploaded_bootstrap = st.file_uploader(
+                    "Upload bootstrap CSV",
+                    type=["csv"],
+                    key="cfg_bootstrap_csv_upload",
+                    help="Daily history with date, portfolio index, and inflation index columns.",
+                )
+                upload_df = None
+                if uploaded_bootstrap is not None:
+                    try:
+                        upload_df = pd.read_csv(uploaded_bootstrap)
+                        uploaded_bootstrap.seek(0)
+                    except Exception as e:
+                        st.error(f"Could not read CSV: {e}")
+
+                if upload_df is not None:
+                    cols = upload_df.columns.tolist()
+                    date_default = cols.index("Date") if "Date" in cols else 0
+                    port_default = (
+                        cols.index("Three Fund Portfolio")
+                        if "Three Fund Portfolio" in cols
+                        else (1 if len(cols) > 1 else 0)
+                    )
+                    inf_default = cols.index("Inflation") if "Inflation" in cols else min(2, len(cols) - 1)
+
+                    date_col = st.selectbox(
+                        "Date column",
+                        cols,
+                        index=date_default,
+                        key="cfg_bootstrap_upload_date",
+                    )
+                    other_cols = [c for c in cols if c != date_col]
+                    port_col = st.selectbox(
+                        "Portfolio column",
+                        other_cols,
+                        index=max(0, other_cols.index(cols[port_default]) if cols[port_default] in other_cols else 0),
+                        key="cfg_bootstrap_upload_portfolio",
+                    )
+                    inf_choices = [c for c in other_cols if c != port_col]
+                    if not inf_choices:
+                        st.error("Need at least three columns (date, portfolio, inflation).")
+                    else:
+                        inf_default_idx = (
+                            inf_choices.index(cols[inf_default])
+                            if cols[inf_default] in inf_choices
+                            else 0
+                        )
+                        inf_col = st.selectbox(
+                            "Inflation column",
+                            inf_choices,
+                            index=inf_default_idx,
+                            key="cfg_bootstrap_upload_inflation",
+                        )
+                        if st.button("Save uploaded CSV", key="cfg_bootstrap_save_upload"):
+                            try:
+                                saved_path = _save_bootstrap_csv_upload(
+                                    uploaded_bootstrap, date_col, port_col, inf_col
+                                )
+                                st.session_state._lifecycle_bootstrap_upload_path = saved_path
+                                st.session_state._lifecycle_autofill_path = saved_path
+                                st.session_state._lifecycle_autofill_portfolio_col = port_col
+                                st.session_state._lifecycle_autofill_inflation_col = inf_col
+                                st.success(f"Saved to `{saved_path}`")
+                            except Exception as e:
+                                st.error(f"Could not save upload: {e}")
+
+                saved_upload_path = st.session_state.get("_lifecycle_bootstrap_upload_path")
+                if saved_upload_path and os.path.isfile(saved_upload_path):
+                    st.caption(f"Using uploaded file: `{saved_upload_path}`")
+                    config.bootstrap_csv_path = saved_upload_path
+                    config.portfolio_column_name = st.session_state.get(
+                        "_lifecycle_autofill_portfolio_col", config.portfolio_column_name
+                    )
+                    config.inflation_column_name = st.session_state.get(
+                        "_lifecycle_autofill_inflation_col", config.inflation_column_name
+                    )
+                elif upload_df is None:
+                    st.info("Upload a CSV and map columns, then click **Save uploaded CSV**.")
+                    config.bootstrap_csv_path = st.session_state.get(
+                        "_lifecycle_autofill_path", config.bootstrap_csv_path
+                    )
+                    config.portfolio_column_name = st.session_state.get(
+                        "_lifecycle_autofill_portfolio_col", config.portfolio_column_name
+                    )
+                    config.inflation_column_name = st.session_state.get(
+                        "_lifecycle_autofill_inflation_col", config.inflation_column_name
+                    )
+            else:
+                config.bootstrap_csv_path = st.text_input(
+                    "Bootstrap CSV Path",
+                    value=st.session_state.get("_lifecycle_autofill_path", config.bootstrap_csv_path),
+                    key="cfg_bootstrap_csv_path",
+                )
+                config.portfolio_column_name = st.text_input(
+                    "Portfolio Column Name",
+                    value=st.session_state.get(
+                        "_lifecycle_autofill_portfolio_col", config.portfolio_column_name
+                    ),
+                    key="cfg_bootstrap_portfolio_col",
+                )
+                config.inflation_column_name = st.text_input(
+                    "Inflation Column Name",
+                    value=st.session_state.get(
+                        "_lifecycle_autofill_inflation_col", config.inflation_column_name
+                    ),
+                    key="cfg_bootstrap_inflation_col",
+                )
+
             st.session_state._lifecycle_autofill_path = config.bootstrap_csv_path
             st.session_state._lifecycle_autofill_portfolio_col = config.portfolio_column_name
             st.session_state._lifecycle_autofill_inflation_col = config.inflation_column_name
@@ -692,6 +852,40 @@ def create_plot_required_principal_real(ages, principals_real, swr, config, medi
         except ImportError:
             return None
 
+
+def _infer_return_annualization(index):
+    """Infer sqrt(periods per year) and rolling windows from a DatetimeIndex (or similar)."""
+    if index is None or len(index) < 3:
+        return np.sqrt(252.0), 21, 252
+    try:
+        ts = pd.to_datetime(pd.Series(index).sort_values(), errors='coerce').dropna()
+        if len(ts) < 3:
+            return np.sqrt(252.0), 21, 252
+        delta = ts.diff().dropna()
+        if delta.empty:
+            return np.sqrt(252.0), 21, 252
+        med_days = float(delta.median() / pd.Timedelta(days=1))
+    except Exception:
+        return np.sqrt(252.0), 21, 252
+    if med_days <= 2.5:
+        periods_per_year = 252.0
+    elif med_days <= 10.0:
+        periods_per_year = 52.0
+    else:
+        periods_per_year = 12.0
+    vol_win = int(max(2, round(21.0 * periods_per_year / 252.0)))
+    skew_win = int(max(vol_win + 1, round(252.0 * periods_per_year / 252.0)))
+    return np.sqrt(periods_per_year), vol_win, skew_win
+
+
+def _wealth_multiplier_from_returns(r):
+    """Cumulative wealth multiplier from simple returns or log returns."""
+    a = np.asarray(r, dtype=float)
+    if np.nanpercentile(np.abs(a), 95) > 0.5:
+        return np.cumprod(1.0 + a)
+    return np.exp(np.cumsum(a))
+
+
 def create_plot_retirement_age_distribution(valid_ages, median_age):
     """Create plot for retirement age distribution returns figure"""
     if valid_ages.size == 0:
@@ -716,18 +910,18 @@ def create_plot_retirement_age_distribution(valid_ages, median_age):
                      annotation_text=f"Median {median_age:.1f}", annotation_position="top")
         
         fig.update_layout(
-            title='Distribution of Retirement Ages',
+            title='Retirement ages',
             xaxis_title='Retirement Age',
             yaxis_title='Frequency',
-            template='plotly_white',
+            template='plotly_dark',
             height=500,
             showlegend=False,
-            font=dict(size=12),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)'
+            font=dict(size=12, color='#e8e8e8'),
+            plot_bgcolor='#000000',
+            paper_bgcolor='#000000'
         )
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
-        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.15)')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.15)')
         
         return fig
     else:
@@ -752,7 +946,7 @@ def create_plot_retirement_age_distribution(valid_ages, median_age):
                 patch.set_edgecolor('#00ffff')
                 patch.set_linewidth(1.5)
             
-            ax.set_title('Distribution of Retirement Ages', fontsize=15, color='white', fontweight='bold')
+            ax.set_title('Retirement ages', fontsize=15, color='white', fontweight='bold')
             ax.axvline(median_age, color='#ff0000', linestyle='--', linewidth=3,
                        label=f'Median: {median_age:.1f}', alpha=0.9)
             ax.set_xlabel('Retirement Age', fontsize=13, color='white', fontweight='bold')
@@ -783,7 +977,8 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
             if stats is None or not stats.get('withdrawals'):
                 continue
             if initial_spending is None:
-                initial_spending = stats.get('initial_spending_real', config.spending_real)
+                _isr = stats.get('initial_spending_real')
+                initial_spending = config.spending_real if _isr is None else _isr
             withdrawals = stats['withdrawals']
             for year_idx, withdrawal in enumerate(withdrawals):
                 if year_idx not in all_withdrawals_by_year:
@@ -858,7 +1053,7 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
             ))
             
 
-            if initial_spending:
+            if initial_spending is not None:
                 threshold = config.amortization_min_spending_threshold * initial_spending
                 fig1.add_hline(y=initial_spending, line_dash="dash", line_color="red", line_width=2,
                               annotation_text=f"Initial ${initial_spending:,.0f}", annotation_position="right")
@@ -901,7 +1096,7 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
             ax1.fill_between(years, p25, p75, alpha=0.3, color='blue', label='25th-75th Percentile')
             ax1.plot(years, medians, 'o-', color='yellow', linewidth=2.5, markersize=6, label='Median', alpha=0.9)
             
-            if initial_spending:
+            if initial_spending is not None:
                 threshold = config.amortization_min_spending_threshold * initial_spending
                 ax1.axhline(y=initial_spending, color='red', linestyle='--', linewidth=2, 
                            label=f'Initial Spending (${initial_spending:,.0f})')
@@ -951,7 +1146,7 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
                 ))
                 
 
-                if initial_spending:
+                if initial_spending is not None:
                     threshold = config.amortization_min_spending_threshold * initial_spending
                     if x_range[0] <= initial_spending <= x_range[1]:
                         fig2.add_vline(x=initial_spending, line_dash="dash", line_color="red", line_width=2.5,
@@ -1018,7 +1213,7 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
                 ))
                 
 
-                if initial_spending:
+                if initial_spending is not None:
                     threshold = config.amortization_min_spending_threshold * initial_spending
                     fig_box.add_hline(y=initial_spending, line_dash="dash", line_color="red", line_width=2.5,
                                      annotation_text=f"Initial ${initial_spending:,.0f}", annotation_position="right")
@@ -1072,7 +1267,7 @@ def create_amortization_visualizations(amortization_stats_list, config, final_be
                     intensity = i / len(patches) if len(patches) > 0 else 0
                     patch.set_facecolor(plt.cm.viridis(intensity))
                 
-                if initial_spending:
+                if initial_spending is not None:
                     threshold = config.amortization_min_spending_threshold * initial_spending
                     ax2.axvline(x=initial_spending, color='red', linestyle='--', linewidth=2.5,
                                label=f'Initial: ${initial_spending:,.0f}')
@@ -1440,18 +1635,22 @@ def create_plot_gkos_benchmark(config, n_workers: int = 20_000):
 
 def create_plot_cumulative_retirement_probability(retirement_ages, config, median_age, num_outer):
     """Create plot for cumulative retirement probability returns figure"""
-    valid_retirement_ages = retirement_ages[~np.isnan(retirement_ages)]
-    if valid_retirement_ages.size == 0:
+    ra = np.asarray(retirement_ages, dtype=float)
+    sorted_valid = np.sort(ra[~np.isnan(ra)])
+    if sorted_valid.size == 0:
         return None
+    denom = float(max(1, int(num_outer)))
+    unique_ages = np.unique(sorted_valid)
+    cumulative_prob = np.array([
+        np.sum((~np.isnan(ra)) & (ra <= a)) / denom * 100.0
+        for a in unique_ages
+    ], dtype=float)
     
     if HAS_PLOTLY:
-        sorted_ages = np.sort(valid_retirement_ages)
-        cumulative_prob = np.arange(1, len(sorted_ages) + 1) / num_outer * 100
-        
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=sorted_ages,
+            x=unique_ages,
             y=cumulative_prob,
             mode='lines+markers',
             name='Cumulative Probability',
@@ -1472,7 +1671,7 @@ def create_plot_cumulative_retirement_probability(retirement_ages, config, media
                          annotation_position="top")
         
         fig.update_layout(
-            title="Cumulative Probability of Retiring by Age",
+            title="Retire by age",
             xaxis_title="Age",
             yaxis_title="Cumulative Probability (%)",
             template='plotly_white',
@@ -1492,13 +1691,11 @@ def create_plot_cumulative_retirement_probability(retirement_ages, config, media
         try:
             import matplotlib.pyplot as plt
             plt.style.use('dark_background')
-            sorted_ages = np.sort(valid_retirement_ages)
-            cumulative_prob = np.arange(1, len(sorted_ages) + 1) / num_outer * 100
             
             fig, ax = plt.subplots(figsize=(12, 7), facecolor='black')
             fig.patch.set_facecolor('black')
             ax.set_facecolor('black')
-            ax.plot(sorted_ages, cumulative_prob, color='#00ff00', marker='o', markersize=5,
+            ax.plot(unique_ages, cumulative_prob, color='#00ff00', marker='o', markersize=5,
                     linestyle='-', alpha=0.9, linewidth=2.5,
                     markerfacecolor='#00ff00', markeredgecolor='white', markeredgewidth=1)
             
@@ -1511,7 +1708,7 @@ def create_plot_cumulative_retirement_probability(retirement_ages, config, media
                 ax.axvline(x=median_age, color='gray', linestyle='--',
                            label=f'Median Retirement Age ({median_age:.1f})', linewidth=2)
             
-            ax.set_title("Cumulative Probability of Retiring by Age", fontsize=15, color='white', fontweight='bold')
+            ax.set_title("Retire by age", fontsize=15, color='white', fontweight='bold')
             ax.set_xlabel("Age", fontsize=13, color='white', fontweight='bold')
             ax.set_ylabel("Cumulative Probability (%)", fontsize=13, color='white', fontweight='bold')
             ax.tick_params(axis='both', colors='white', labelsize=11)
@@ -2484,221 +2681,221 @@ def parameter_estimation_section(returns_data):
                                     regime_returns_sample = regime_returns
                             
 
-                            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
-                            import json
-                            import time
-                            from scipy import stats
-                            try:
-                                emp_mean = np.mean(regime_returns_sample)
-                                emp_std = np.std(regime_returns_sample)
-                                emp_skew = stats.skew(regime_returns_sample)
-                                emp_kurt = stats.kurtosis(regime_returns_sample, fisher=True) + 3
-                                log_entry = {
-                                    "timestamp": int(time.time() * 1000),
-                                    "location": "app.py:1839",
-                                    "message": "Before optimization call",
-                                    "data": {
-                                        "dataset_size": len(regime_returns_sample),
-                                        "use_bounds": use_bounds_flag,
-                                        "bounds_enabled": use_bounds_flag,
-                                        "restarts": 15,
-                                        "maxiter": 3000,
-                                        "emp_mean": float(emp_mean),
-                                        "emp_std": float(emp_std),
-                                        "emp_skew": float(emp_skew),
-                                        "emp_kurt": float(emp_kurt),
-                                        "bounds_lower": [float(b[0]) for b in bounds_to_use] if bounds_to_use else None,
-                                        "bounds_upper": [float(b[1]) for b in bounds_to_use] if bounds_to_use else None
+                                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
+                                import json
+                                import time
+                                from scipy import stats
+                                try:
+                                    emp_mean = np.mean(regime_returns_sample)
+                                    emp_std = np.std(regime_returns_sample)
+                                    emp_skew = stats.skew(regime_returns_sample)
+                                    emp_kurt = stats.kurtosis(regime_returns_sample, fisher=True) + 3
+                                    log_entry = {
+                                        "timestamp": int(time.time() * 1000),
+                                        "location": "app.py:1839",
+                                        "message": "Before optimization call",
+                                        "data": {
+                                            "dataset_size": len(regime_returns_sample),
+                                            "use_bounds": use_bounds_flag,
+                                            "bounds_enabled": use_bounds_flag,
+                                            "restarts": 15,
+                                            "maxiter": 3000,
+                                            "emp_mean": float(emp_mean),
+                                            "emp_std": float(emp_std),
+                                            "emp_skew": float(emp_skew),
+                                            "emp_kurt": float(emp_kurt),
+                                            "bounds_lower": [float(b[0]) for b in bounds_to_use] if bounds_to_use else None,
+                                            "bounds_upper": [float(b[1]) for b in bounds_to_use] if bounds_to_use else None
+                                        }
                                     }
-                                }
-                                with open(log_file, 'a', encoding='utf-8') as f:
-                                    f.write(json.dumps(log_entry) + '\n')
-                            except Exception as log_err:
-                                pass
+                                    with open(log_file, 'a', encoding='utf-8') as f:
+                                        f.write(json.dumps(log_entry) + '\n')
+                                except Exception as log_err:
+                                    pass
 
                             
 
-                            try:
-                                import sys
-                                from io import StringIO
-                                
-
-                                old_stdout = sys.stdout
-                                old_stderr = sys.stderr
-                                captured_output = StringIO()
-                                
                                 try:
+                                    import sys
+                                    from io import StringIO
+                                
 
-                                    sys.stdout = captured_output
-                                    sys.stderr = captured_output
-                                    
-
-                                    fit_func = regime_module.fit_bates_moment_matching
-                                    
-
-
-                                    from rich.console import Console
+                                    old_stdout = sys.stdout
+                                    old_stderr = sys.stderr
+                                    captured_output = StringIO()
+                                
                                     try:
-                                        if hasattr(fit_func, '__module__'):
-                                            mod_name = fit_func.__module__
-                                            if mod_name in sys.modules:
-                                                mod = sys.modules[mod_name]
-                                                if hasattr(mod, 'console'):
 
-                                                    mod.console = Console(file=captured_output, width=200, force_terminal=False, legacy_windows=False)
-                                                    if enable_debug:
-
-                                                        if hasattr(mod, 'DEBUG'):
-                                                            mod.DEBUG = True
-                                    except Exception as console_err:
-
-                                        captured_output.write(f"Warning: Could not redirect Rich Console: {console_err}\n")
+                                        sys.stdout = captured_output
+                                        sys.stderr = captured_output
                                     
 
-                                    n_restarts_use = st.session_state.get('param_estimation_restarts', 15)
-                                    max_iter_use = st.session_state.get('param_estimation_maxiter', 10000)  # Match standalone script: MAXITER = 10000
+                                        fit_func = regime_module.fit_bates_moment_matching
                                     
 
 
-                                    opt_status = st.empty()
-                                    opt_status.text(f"Running optimization with {n_restarts_use} restarts (up to {max_iter_use} iterations each)...")
-                                    
-
-                                    if enable_debug:
-                                        captured_output.write(f"=== DEBUG: Starting parameter estimation ===\n")
-                                        captured_output.write(f"Dataset size: {len(regime_returns_sample)}\n")
-                                        captured_output.write(f"Restarts: {n_restarts_use}\n")
-                                        captured_output.write(f"Max iterations per restart: {max_iter_use}\n")
-                                        captured_output.write(f"Use bounds: {use_bounds_flag}\n")
-
+                                        from rich.console import Console
                                         try:
                                             if hasattr(fit_func, '__module__'):
                                                 mod_name = fit_func.__module__
                                                 if mod_name in sys.modules:
                                                     mod = sys.modules[mod_name]
-                                                    if hasattr(mod, 'DEBUG'):
-                                                        captured_output.write(f"Moment matching module DEBUG flag: {mod.DEBUG}\n")
-                                        except Exception:
-                                            pass
-                                        captured_output.write("============================================\n\n")
-                                    
-                                    direct_result = fit_func(
-                                        regime_returns_sample,
-                                        name="Regime_0",
-                                        restarts=n_restarts_use,
-                                        maxiter=max_iter_use,
-                                        bounds_vec=bounds_to_use,
-                                        use_bounds=use_bounds_flag,
-                                        match_max_dd=False
-                                    )
+                                                    if hasattr(mod, 'console'):
+
+                                                        mod.console = Console(file=captured_output, width=200, force_terminal=False, legacy_windows=False)
+                                                        if enable_debug:
+
+                                                            if hasattr(mod, 'DEBUG'):
+                                                                mod.DEBUG = True
+                                        except Exception as console_err:
+
+                                            captured_output.write(f"Warning: Could not redirect Rich Console: {console_err}\n")
                                     
 
-                                    opt_status.empty()
-                                    
-                                    if direct_result is not None:
-
-                                        params_dict = {0: direct_result['params']}
-                                        
-
-                                        emp_moments = direct_result.get('emp_moments', {})
-                                        model_moments = direct_result.get('model_moments', {})
-                                        
-                                        moment_info_dict = {
-                                            0: {
-                                                'n_obs': direct_result.get('n_obs', len(regime_returns_sample)),
-                                                'objective': direct_result.get('objective', np.nan),
-                                                'emp_mean': emp_moments.get('mean', np.nan),
-                                                'emp_std': emp_moments.get('std', np.nan),
-                                                'emp_skew': emp_moments.get('skew', np.nan),
-                                                'emp_kurt': emp_moments.get('kurt', np.nan),
-                                                'model_mean': model_moments.get('mean', np.nan),
-                                                'model_std': model_moments.get('std', np.nan),
-                                                'model_skew': model_moments.get('skew', np.nan),
-                                                'model_kurt': model_moments.get('kurt', np.nan),
-                                            }
-                                        }
-                                        st.success("✅ Parameter estimation succeeded!")
-                                    else:
-
-                                        try:
-                                            log_entry = {
-                                                "timestamp": int(time.time() * 1000),
-                                                "location": "app.py:1893",
-                                                "message": "Optimization returned None",
-                                                "data": {
-                                                    "dataset_size": len(regime_returns_sample),
-                                                    "result_is_none": direct_result is None,
-                                                    "use_bounds": use_bounds_flag
-                                                }
-                                            }
-                                            with open(log_file, 'a', encoding='utf-8') as f:
-                                                f.write(json.dumps(log_entry) + '\n')
-                                        except Exception:
-                                            pass
-
-                                        
-                                        st.error("❌ Parameter estimation failed - optimization returned None")
-                                        st.write("**Possible reasons:**")
-                                        st.write("1. Optimization failed after all restarts")
-                                        st.write("2. Data characteristics incompatible with Bates model")
-                                        st.write("3. Bounds too restrictive (try disabling bounds)")
-                                        st.write("4. Try enabling data sampling for large datasets")
-                                        params_dict = {}
-                                        moment_info_dict = {}
-                                        
-                                finally:
-                                    sys.stdout = old_stdout
-                                    sys.stderr = old_stderr
-                                    output_text = captured_output.getvalue()
+                                        n_restarts_use = st.session_state.get('param_estimation_restarts', 15)
+                                        max_iter_use = st.session_state.get('param_estimation_maxiter', 10000)  # Match standalone script: MAXITER = 10000
                                     
 
-                                    import re
-                                    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-                                    output_text_clean = ansi_escape.sub('', output_text) if output_text else ""
+
+                                        opt_status = st.empty()
+                                        opt_status.text(f"Running optimization with {n_restarts_use} restarts (up to {max_iter_use} iterations each)...")
                                     
 
-                                    if output_text_clean and (enable_debug or direct_result is None):
-                                        with st.expander("🔍 Estimation Console Output", expanded=enable_debug or direct_result is None):
-                                            st.code(output_text_clean, language=None)
-                                    elif enable_debug and not output_text_clean:
+                                        if enable_debug:
+                                            captured_output.write(f"=== DEBUG: Starting parameter estimation ===\n")
+                                            captured_output.write(f"Dataset size: {len(regime_returns_sample)}\n")
+                                            captured_output.write(f"Restarts: {n_restarts_use}\n")
+                                            captured_output.write(f"Max iterations per restart: {max_iter_use}\n")
+                                            captured_output.write(f"Use bounds: {use_bounds_flag}\n")
 
-                                        debug_status = "unknown"
-                                        try:
-                                            if hasattr(regime_module, 'fit_bates_moment_matching'):
-                                                fit_func = regime_module.fit_bates_moment_matching
+                                            try:
                                                 if hasattr(fit_func, '__module__'):
                                                     mod_name = fit_func.__module__
                                                     if mod_name in sys.modules:
                                                         mod = sys.modules[mod_name]
                                                         if hasattr(mod, 'DEBUG'):
-                                                            debug_status = str(mod.DEBUG)
-                                        except Exception:
-                                            pass
-                                        st.warning(f"⚠️ Debug mode enabled but no console output captured. DEBUG flag status: {debug_status}. Rich console output may not be captured by StringIO.")
+                                                            captured_output.write(f"Moment matching module DEBUG flag: {mod.DEBUG}\n")
+                                            except Exception:
+                                                pass
+                                            captured_output.write("============================================\n\n")
                                     
-                            except Exception as est_err:
-                                st.error(f"❌ Error during 1-regime parameter estimation: {str(est_err)}")
-                                import traceback
-                                with st.expander("Estimation Error Details"):
-                                    st.code(traceback.format_exc())
-                                params_dict = {}
-                                moment_info_dict = {}
+                                        direct_result = fit_func(
+                                            regime_returns_sample,
+                                            name="Regime_0",
+                                            restarts=n_restarts_use,
+                                            maxiter=max_iter_use,
+                                            bounds_vec=bounds_to_use,
+                                            use_bounds=use_bounds_flag,
+                                            match_max_dd=False
+                                        )
+                                    
+
+                                        opt_status.empty()
+                                    
+                                        if direct_result is not None:
+
+                                            params_dict = {0: direct_result['params']}
+                                        
+
+                                            emp_moments = direct_result.get('emp_moments', {})
+                                            model_moments = direct_result.get('model_moments', {})
+                                        
+                                            moment_info_dict = {
+                                                0: {
+                                                    'n_obs': direct_result.get('n_obs', len(regime_returns_sample)),
+                                                    'objective': direct_result.get('objective', np.nan),
+                                                    'emp_mean': emp_moments.get('mean', np.nan),
+                                                    'emp_std': emp_moments.get('std', np.nan),
+                                                    'emp_skew': emp_moments.get('skew', np.nan),
+                                                    'emp_kurt': emp_moments.get('kurt', np.nan),
+                                                    'model_mean': model_moments.get('mean', np.nan),
+                                                    'model_std': model_moments.get('std', np.nan),
+                                                    'model_skew': model_moments.get('skew', np.nan),
+                                                    'model_kurt': model_moments.get('kurt', np.nan),
+                                                }
+                                            }
+                                            st.success("✅ Parameter estimation succeeded!")
+                                        else:
+
+                                            try:
+                                                log_entry = {
+                                                    "timestamp": int(time.time() * 1000),
+                                                    "location": "app.py:1893",
+                                                    "message": "Optimization returned None",
+                                                    "data": {
+                                                        "dataset_size": len(regime_returns_sample),
+                                                        "result_is_none": direct_result is None,
+                                                        "use_bounds": use_bounds_flag
+                                                    }
+                                                }
+                                                with open(log_file, 'a', encoding='utf-8') as f:
+                                                    f.write(json.dumps(log_entry) + '\n')
+                                            except Exception:
+                                                pass
+
+                                        
+                                            st.error("❌ Parameter estimation failed - optimization returned None")
+                                            st.write("**Possible reasons:**")
+                                            st.write("1. Optimization failed after all restarts")
+                                            st.write("2. Data characteristics incompatible with Bates model")
+                                            st.write("3. Bounds too restrictive (try disabling bounds)")
+                                            st.write("4. Try enabling data sampling for large datasets")
+                                            params_dict = {}
+                                            moment_info_dict = {}
+                                        
+                                    finally:
+                                        sys.stdout = old_stdout
+                                        sys.stderr = old_stderr
+                                        output_text = captured_output.getvalue()
+                                    
+
+                                        import re
+                                        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                                        output_text_clean = ansi_escape.sub('', output_text) if output_text else ""
+                                    
+
+                                        if output_text_clean and (enable_debug or direct_result is None):
+                                            with st.expander("🔍 Estimation Console Output", expanded=enable_debug or direct_result is None):
+                                                st.code(output_text_clean, language=None)
+                                        elif enable_debug and not output_text_clean:
+
+                                            debug_status = "unknown"
+                                            try:
+                                                if hasattr(regime_module, 'fit_bates_moment_matching'):
+                                                    fit_func = regime_module.fit_bates_moment_matching
+                                                    if hasattr(fit_func, '__module__'):
+                                                        mod_name = fit_func.__module__
+                                                        if mod_name in sys.modules:
+                                                            mod = sys.modules[mod_name]
+                                                            if hasattr(mod, 'DEBUG'):
+                                                                debug_status = str(mod.DEBUG)
+                                            except Exception:
+                                                pass
+                                            st.warning(f"⚠️ Debug mode enabled but no console output captured. DEBUG flag status: {debug_status}. Rich console output may not be captured by StringIO.")
+                                    
+                                except Exception as est_err:
+                                    st.error(f"❌ Error during 1-regime parameter estimation: {str(est_err)}")
+                                    import traceback
+                                    with st.expander("Estimation Error Details"):
+                                        st.code(traceback.format_exc())
+                                    params_dict = {}
+                                    moment_info_dict = {}
                             
 
-                                class DummyHMM:
-                                    def __init__(self):
-                                        self.means_ = np.array([[0.0]])
+                                    class DummyHMM:
+                                        def __init__(self):
+                                            self.means_ = np.array([[0.0]])
                                 
-                                results = {
-                                    'params_dict': params_dict,
-                                    'moment_info_dict': moment_info_dict,
-                                    'regime_labels': regime_labels,
-                                    'transition_matrix': transition_matrix,
-                                    'hmm_model': DummyHMM(),
-                                    'num_regimes': 1,
-                                    'features': hmm_features,
-                                    'method': estimation_method
-                                }
+                                    results = {
+                                        'params_dict': params_dict,
+                                        'moment_info_dict': moment_info_dict,
+                                        'regime_labels': regime_labels,
+                                        'transition_matrix': transition_matrix,
+                                        'hmm_model': DummyHMM(),
+                                        'num_regimes': 1,
+                                        'features': hmm_features,
+                                        'method': estimation_method
+                                    }
                             else:
                                 # Replicate standalone: log returns, group by regime, fit per regime.
                                 # Use HMM results' returns when available (monthly 21-day bucket). Else tab returns.
@@ -2706,117 +2903,117 @@ def parameter_estimation_section(returns_data):
                                     _returns_param = st.session_state.hmm_results['returns_data']
                                 else:
                                     _returns_param = returns_data
-                            # Get returns and convert to log decimal (percent → divide by 100)
-                            if hasattr(_returns_param, 'values'):
-                                all_returns = _returns_param.values.copy()
-                            else:
-                                all_returns = np.array(_returns_param).copy()
-                            # Percentage log returns → log decimal
-                            if np.any(np.abs(all_returns) > 1.0):
-                                log_returns = all_returns / 100.0
-                            else:
-                                log_returns = all_returns
+                                # Get returns and convert to log decimal (percent → divide by 100)
+                                if hasattr(_returns_param, 'values'):
+                                    all_returns = _returns_param.values.copy()
+                                else:
+                                    all_returns = np.array(_returns_param).copy()
+                                # Percentage log returns → log decimal
+                                if np.any(np.abs(all_returns) > 1.0):
+                                    log_returns = all_returns / 100.0
+                                else:
+                                    log_returns = all_returns
                             
-                            # Get regime labels from HMM results (matching standalone script's CSV regime column)
-                            if use_existing_hmm and st.session_state.hmm_results is not None:
-                                regime_labels = st.session_state.hmm_results['regime_labels']
-                            else:
-                                # If not using existing HMM, we need to run HMM first (but this path shouldn't be used if use_existing_hmm is True)
-                                st.error("❌ Cannot proceed without HMM results. Please run HMM detection first.")
-                                return
+                                # Get regime labels from HMM results (matching standalone script's CSV regime column)
+                                if use_existing_hmm and st.session_state.hmm_results is not None:
+                                    regime_labels = st.session_state.hmm_results['regime_labels']
+                                else:
+                                    # If not using existing HMM, we need to run HMM first (but this path shouldn't be used if use_existing_hmm is True)
+                                    st.error("❌ Cannot proceed without HMM results. Please run HMM detection first.")
+                                    return
                             
-                            # Align regime labels with returns
-                            regime_labels_aligned = regime_labels[:len(log_returns)]
+                                # Align regime labels with returns
+                                regime_labels_aligned = regime_labels[:len(log_returns)]
                             
-                            # Create DataFrame exactly like standalone script (line 1248-1279)
-                            df = pd.DataFrame({
-                                'returns': log_returns,
-                                'regime': np.array(regime_labels_aligned, dtype=float)
-                            })
+                                # Create DataFrame exactly like standalone script (line 1248-1279)
+                                df = pd.DataFrame({
+                                    'returns': log_returns,
+                                    'regime': np.array(regime_labels_aligned, dtype=float)
+                                })
                             
-                            # Group by regime (matching standalone script line 1280)
-                            regimes = df.groupby('regime')
+                                # Group by regime (matching standalone script line 1280)
+                                regimes = df.groupby('regime')
                             
-                            # Get bounds (matching standalone script lines 1210-1216)
-                            bounds_to_use = regime_module.DEFAULT_BOUNDS  # Use default bounds (not option pricing)
+                                # Get bounds (matching standalone script lines 1210-1216)
+                                bounds_to_use = regime_module.DEFAULT_BOUNDS  # Use default bounds (not option pricing)
                             
-                            # Fit each regime using fit_bates_moment_matching directly (matching standalone script lines 1319-1416)
-                            results_list = []
-                            for regime_id, regime_df in regimes:
-                                regime_returns = regime_df['returns'].values.copy()
+                                # Fit each regime using fit_bates_moment_matching directly (matching standalone script lines 1319-1416)
+                                results_list = []
+                                for regime_id, regime_df in regimes:
+                                    regime_returns = regime_df['returns'].values.copy()
 
-                                # Regime 3 (extreme crisis): same filtering as standalone
-                                if regime_id == 3.0 or regime_id == 3:
-                                    cumulative_price = 100.0 * np.cumprod(1 + regime_returns)
-                                    running_peak = np.maximum.accumulate(cumulative_price)
-                                    drawdown_from_peak = (running_peak - cumulative_price) / running_peak
-                                    extreme_threshold = 0.50
-                                    extreme_mask = drawdown_from_peak > extreme_threshold
-                                    if np.sum(extreme_mask) < 20:
-                                        extreme_threshold = 0.30
+                                    # Regime 3 (extreme crisis): same filtering as standalone
+                                    if regime_id == 3.0 or regime_id == 3:
+                                        cumulative_price = 100.0 * _wealth_multiplier_from_returns(regime_returns)
+                                        running_peak = np.maximum.accumulate(cumulative_price)
+                                        drawdown_from_peak = (running_peak - cumulative_price) / running_peak
+                                        extreme_threshold = 0.50
                                         extreme_mask = drawdown_from_peak > extreme_threshold
-                                    if np.sum(extreme_mask) >= 10:
-                                        regime_returns = regime_returns[extreme_mask]
+                                        if np.sum(extreme_mask) < 20:
+                                            extreme_threshold = 0.30
+                                            extreme_mask = drawdown_from_peak > extreme_threshold
+                                        if np.sum(extreme_mask) >= 10:
+                                            regime_returns = regime_returns[extreme_mask]
 
-                                # Skip if too few observations (matching standalone script line 1366)
-                                if len(regime_returns) < 10:
-                                    continue
+                                    # Skip if too few observations (matching standalone script line 1366)
+                                    if len(regime_returns) < 10:
+                                        continue
 
-                                # Check if already log returns (matching standalone script line 1372-1379)
-                                # NOTE: regime_returns from df['returns'] are already log returns (we set them above)
-                                # The standalone script checks again (line 1376-1379) but that's defensive - the DataFrame
-                                # already has log returns from line 1262, so this check should never trigger
-                                conversion_triggered = False
-                                if np.any(np.abs(regime_returns) > 0.5):
-                                    # Likely simple returns, convert to log
-                                    conversion_triggered = True
-                                    regime_returns = np.log(1.0 + regime_returns)
+                                    # Check if already log returns (matching standalone script line 1372-1379)
+                                    # NOTE: regime_returns from df['returns'] are already log returns (we set them above)
+                                    # The standalone script checks again (line 1376-1379) but that's defensive - the DataFrame
+                                    # already has log returns from line 1262, so this check should never trigger
+                                    conversion_triggered = False
+                                    if np.any(np.abs(regime_returns) > 0.5):
+                                        # Likely simple returns, convert to log
+                                        conversion_triggered = True
+                                        regime_returns = np.log(1.0 + regime_returns)
                                 
-                                # Call fit_bates_moment_matching with same parameters as standalone
-                                result = regime_module.fit_bates_moment_matching(
-                                    regime_returns,
-                                    name=f'regime_{regime_id}',
-                                    restarts=regime_module.NUM_RESTARTS,
-                                    maxiter=regime_module.MAXITER,
-                                    bounds_vec=bounds_to_use,
-                                    match_max_dd=False
-                                )
+                                    # Call fit_bates_moment_matching with same parameters as standalone
+                                    result = regime_module.fit_bates_moment_matching(
+                                        regime_returns,
+                                        name=f'regime_{regime_id}',
+                                        restarts=regime_module.NUM_RESTARTS,
+                                        maxiter=regime_module.MAXITER,
+                                        bounds_vec=bounds_to_use,
+                                        match_max_dd=False
+                                    )
                                 
-                                # Only add if fitting succeeded (matching standalone script line 1398-1399)
-                                if result is not None:
-                                    results_list.append(result)
+                                    # Only add if fitting succeeded (matching standalone script line 1398-1399)
+                                    if result is not None:
+                                        results_list.append(result)
                             
-                            # Convert results_list to params_dict and moment_info_dict format (for compatibility with display function)
-                            params_dict = {}
-                            moment_info_dict = {}
-                            for r in results_list:
-                                regime_id = float(r['name'].split('_')[1])
-                                params_dict[regime_id] = r['params']
-                                moment_info_dict[regime_id] = {
-                                    'n_obs': r['n_obs'],
-                                    'emp_mean': r['emp_moments']['mean'],
-                                    'model_mean': r['model_moments']['mean'],
-                                    'emp_std': r['emp_moments']['std'],
-                                    'model_std': r['model_moments']['std'],
-                                    'emp_skew': r['emp_moments']['skew'],
-                                    'model_skew': r['model_moments']['skew'],
-                                    'emp_kurt': r['emp_moments']['kurt'],
-                                    'model_kurt': r['model_moments']['kurt'],
-                                }
+                                # Convert results_list to params_dict and moment_info_dict format (for compatibility with display function)
+                                params_dict = {}
+                                moment_info_dict = {}
+                                for r in results_list:
+                                    regime_id = float(r['name'].split('_')[1])
+                                    params_dict[regime_id] = r['params']
+                                    moment_info_dict[regime_id] = {
+                                        'n_obs': r['n_obs'],
+                                        'emp_mean': r['emp_moments']['mean'],
+                                        'model_mean': r['model_moments']['mean'],
+                                        'emp_std': r['emp_moments']['std'],
+                                        'model_std': r['model_moments']['std'],
+                                        'emp_skew': r['emp_moments']['skew'],
+                                        'model_skew': r['model_moments']['skew'],
+                                        'emp_kurt': r['emp_moments']['kurt'],
+                                        'model_kurt': r['model_moments']['kurt'],
+                                    }
 
-                            # Create results dict matching the format expected by display function
-                            results = {
-                                'params_dict': params_dict,
-                                'moment_info_dict': moment_info_dict,
-                                'regime_labels': regime_labels_aligned,
-                                'transition_matrix': st.session_state.hmm_results.get('transition_matrix') if use_existing_hmm else None,
-                                'hmm_model': st.session_state.hmm_results.get('hmm_model') if use_existing_hmm else None,
-                                'num_regimes': len(params_dict),
-                                'features': hmm_features if not use_existing_hmm else st.session_state.hmm_results.get('features', 'vol&skew'),
-                                'method': estimation_method,
-                                'results_list': results_list,  # Store original results_list for visualization
-                                'df': df  # Store DataFrame for visualization
-                            }
+                                # Create results dict matching the format expected by display function
+                                results = {
+                                    'params_dict': params_dict,
+                                    'moment_info_dict': moment_info_dict,
+                                    'regime_labels': regime_labels_aligned,
+                                    'transition_matrix': st.session_state.hmm_results.get('transition_matrix') if use_existing_hmm else None,
+                                    'hmm_model': st.session_state.hmm_results.get('hmm_model') if use_existing_hmm else None,
+                                    'num_regimes': len(params_dict),
+                                    'features': hmm_features if not use_existing_hmm else st.session_state.hmm_results.get('features', 'vol&skew'),
+                                    'method': estimation_method,
+                                    'results_list': results_list,  # Store original results_list for visualization
+                                    'df': df  # Store DataFrame for visualization
+                                }
                         
                         st.session_state.param_estimation_results = results
                         st.success("✅ Parameter estimation complete!")
@@ -2906,6 +3103,7 @@ def compute_regime_stability(regime_labels, transition_matrix, returns_data, num
         returns_df = pd.DataFrame({'returns': returns_data}, index=returns_data.index)
         returns_df['regime'] = regime_labels[:len(returns_df)]
         
+        ann_sqrt, vol_win, skew_win = _infer_return_annualization(returns_data.index)
 
         volatility_cvs = []
         skewness_cvs = []
@@ -2917,9 +3115,9 @@ def compute_regime_stability(regime_labels, transition_matrix, returns_data, num
             regime_mask = returns_df['regime'] == i
             regime_returns = returns_df.loc[regime_mask, 'returns']
             
-            if len(regime_returns) > 21:
+            if len(regime_returns) > vol_win:
 
-                regime_vol = regime_returns.rolling(window=21, min_periods=1).std() * np.sqrt(252) * 100
+                regime_vol = regime_returns.rolling(window=vol_win, min_periods=1).std() * ann_sqrt * 100
                 regime_vol = regime_vol.dropna()
                 
                 if len(regime_vol) > 0 and regime_vol.mean() > 0:
@@ -2928,8 +3126,8 @@ def compute_regime_stability(regime_labels, transition_matrix, returns_data, num
                     vol_cv = np.nan
                 
 
-                if len(regime_returns) > 252:
-                    regime_skew = regime_returns.rolling(window=252, min_periods=1).skew()
+                if len(regime_returns) > skew_win:
+                    regime_skew = regime_returns.rolling(window=skew_win, min_periods=1).skew()
                     regime_skew = regime_skew.dropna()
                     
                     if len(regime_skew) > 0 and regime_skew.abs().mean() > 0:
@@ -4991,6 +5189,19 @@ def display_results(results, config):
             st.metric("Before Age 60", f"{prob_before_60:.2f}%")
     else:
         st.warning("No successful retirements in simulations")
+
+    # Final Bequest Statistics — above chart tabs
+    final_bequest_real = results.get('final_bequest_real')
+    if final_bequest_real is not None and len(final_bequest_real) > 0:
+        st.subheader("💎 Final Bequest Statistics")
+        bequest_array = np.array(final_bequest_real)
+        col_b1, col_b2, col_b3 = st.columns(3)
+        with col_b1:
+            st.metric("Mean Bequest (Real $)", f"${np.mean(bequest_array):,.2f}")
+        with col_b2:
+            st.metric("Median Bequest (Real $)", f"${np.median(bequest_array):,.2f}")
+        with col_b3:
+            st.metric("10th Percentile", f"${np.percentile(bequest_array, 10):,.2f}")
     
     # Utility Metrics
     if config.enable_utility_calculations and results.get('utility_ex_ante') is not None:
@@ -4999,12 +5210,15 @@ def display_results(results, config):
         
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Equivalent Savings Rate", f"{baseline_savings_rate*100:.2f}%")
+            st.metric("Savings rate", f"{baseline_savings_rate*100:.2f}%")
         with col2:
             if results.get('ce_annual') is not None:
                 st.metric("Certainty Equivalent (Annual, Real $)", f"${results['ce_annual']:,.2f}")
         
-        st.info("Note: Equivalent Savings Rate shows the savings rate used in the simulation. Utility calculated using EX-ANTE approach.")
+        st.caption(
+            "Savings rate is the fraction of labor income saved each month in this run. "
+            "Utility uses the EX-ANTE aggregation over simulations."
+        )
     
     # Amortization Statistics
     if config.use_amortization and results.get('amortization_stats_list'):
@@ -5026,7 +5240,8 @@ def display_results(results, config):
                         continue
                     
                     if initial_spending is None:
-                        initial_spending = stats.get('initial_spending_real', config.spending_real)
+                        _isr = stats.get('initial_spending_real')
+                        initial_spending = config.spending_real if _isr is None else _isr
                     
                     withdrawals = stats.get('withdrawals', [])
                     all_withdrawals.extend(withdrawals)
@@ -5108,22 +5323,24 @@ def display_results(results, config):
         except Exception as e:
             st.warning(f"Error displaying amortization statistics: {str(e)}")
     
-    # Principal plots - add labor income and amortization tabs when available
+    # Charts — tabbed layout (principal, retirement, cumulative, optional path-end / earnings / amortization)
     has_earnings_results = bool(results.get('earnings_real_list')) and config.annual_income_real > 0
-    tab_labels = ["Principal Requirements", "Retirement Age Distribution", "Cumulative Probability"]
+    tab_labels = [
+        "Principal Requirements",
+        "Retirement Age Distribution",
+        "Cumulative Probability",
+    ]
+    if getattr(config, 'use_stochastic_mortality', False):
+        tab_labels.append("Path end ages")
     if has_earnings_results:
         tab_labels.append("Labor Income Dynamics")
     if config.use_amortization and results.get('amortization_stats_list'):
         tab_labels.append("Amortization Analysis")
+
     tabs = st.tabs(tab_labels)
-    tab1, tab2, tab3 = tabs[:3]
-    next_tab_idx = 3
-    tab_earnings = tabs[next_tab_idx] if has_earnings_results else None
-    if has_earnings_results:
-        next_tab_idx += 1
-    tab_amortization = tabs[next_tab_idx] if config.use_amortization and results.get('amortization_stats_list') else None
-    
-    with tab1:
+    tab_it = iter(tabs)
+
+    with next(tab_it):
         st.write("**Principal Requirements by Retirement Age**")
         if required_principal_data:
             ages = [row['age'] for row in required_principal_data]
@@ -5150,8 +5367,8 @@ def display_results(results, config):
                         plt.close(fig_real)
         else:
             st.warning("No principal data available")
-    
-    with tab2:
+
+    with next(tab_it):
         if valid_ages.size > 0:
             fig_dist = create_plot_retirement_age_distribution(valid_ages, median_age)
             if fig_dist:
@@ -5162,10 +5379,11 @@ def display_results(results, config):
                     plt.close(fig_dist)
         else:
             st.warning("No retirement ages to plot")
-    
-    with tab3:
+
+    with next(tab_it):
         if valid_ages.size > 0:
-            fig_cum = create_plot_cumulative_retirement_probability(retirement_ages, config, median_age, config.num_outer)
+            fig_cum = create_plot_cumulative_retirement_probability(
+                retirement_ages, config, median_age, config.num_outer)
             if fig_cum:
                 if HAS_PLOTLY:
                     st.plotly_chart(fig_cum, width='stretch')
@@ -5175,8 +5393,63 @@ def display_results(results, config):
         else:
             st.warning("No retirement ages to plot")
 
-    if tab_earnings is not None:
-        with tab_earnings:
+    if getattr(config, 'use_stochastic_mortality', False):
+        with next(tab_it):
+            pe = results.get('path_end_ages')
+            if pe is not None:
+                pe_arr = np.asarray(pe, dtype=float)
+                good = pe_arr[np.isfinite(pe_arr)]
+                if good.size > 0:
+                    st.caption(
+                        "**Outer paths only.** Age when that path stopped: SSA mortality draw, "
+                        "portfolio depleted, or horizon **120**."
+                    )
+                    med_pe = float(np.median(good))
+                    pct120 = 100.0 * np.mean(good >= 119.999)
+                    st.caption(
+                        f"Median **{med_pe:.1f}** · Share at horizon 120: **{pct120:.1f}%** · "
+                        f"n = {good.size:,}"
+                    )
+                    span = float(np.ptp(good)) if good.size > 1 else 1.0
+                    nb = int(min(80, max(20, span * 4)))
+                    if HAS_PLOTLY:
+                        fig_pe = go.Figure(
+                            data=[go.Histogram(x=good, nbinsx=nb, marker_color='#ffaa00', opacity=0.88)]
+                        )
+                        fig_pe.update_layout(
+                            title="Path end ages",
+                            xaxis_title="Age",
+                            yaxis_title="Count",
+                            template='plotly_dark',
+                            plot_bgcolor='#000000',
+                            paper_bgcolor='#000000',
+                            font=dict(color='#e8e8e8'),
+                            height=360,
+                            showlegend=False,
+                            margin=dict(l=50, r=30, t=50, b=50),
+                        )
+                        fig_pe.update_xaxes(gridcolor='rgba(255,255,255,0.15)')
+                        fig_pe.update_yaxes(gridcolor='rgba(255,255,255,0.15)')
+                        st.plotly_chart(fig_pe, width='stretch')
+                    elif HAS_MATPLOTLIB:
+                        fig_pe, ax_pe = plt.subplots(figsize=(10, 4), facecolor='black')
+                        ax_pe.set_facecolor('black')
+                        ax_pe.hist(good, bins=nb, color='#ffaa00', edgecolor='white', alpha=0.88)
+                        ax_pe.set_title('Path end ages', color='white')
+                        ax_pe.set_xlabel('Age', color='white')
+                        ax_pe.set_ylabel('Count', color='white')
+                        ax_pe.tick_params(colors='white')
+                        ax_pe.grid(True, linestyle='--', alpha=0.25)
+                        fig_pe.tight_layout()
+                        st.pyplot(fig_pe)
+                        plt.close(fig_pe)
+                else:
+                    st.warning("No path end ages to plot")
+            else:
+                st.warning("Path end age data missing")
+
+    if has_earnings_results:
+        with next(tab_it):
             with st.spinner("Running GKOS earnings simulation…"):
                 bench_fig, bench_stats = create_plot_gkos_benchmark(config, n_workers=20_000)
 
@@ -5209,10 +5482,9 @@ def display_results(results, config):
                 st.write("**Distribution by Age Bucket**")
                 st.dataframe(earnings_moments, use_container_width=True, hide_index=True)
                 st.caption("Percentiles among positive earners per age bucket.")
-    
-    # Amortization tab
-    if tab_amortization is not None:
-        with tab_amortization:
+
+    if config.use_amortization and results.get('amortization_stats_list'):
+        with next(tab_it):
             create_amortization_visualizations(results['amortization_stats_list'], config, 
                                                results.get('final_bequest_nominal', []), 
                                                results.get('final_bequest_real', []))
@@ -5249,19 +5521,7 @@ def display_results(results, config):
             file_name="utility_metrics.csv",
             mime="text/csv"
         )
-    
-    # Bequest statistics
-    final_bequest_real = results.get('final_bequest_real')
-    if final_bequest_real is not None and len(final_bequest_real) > 0:
-        st.subheader("💎 Final Bequest Statistics")
-        bequest_array = np.array(final_bequest_real)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Mean Bequest (Real $)", f"${np.mean(bequest_array):,.2f}")
-        with col2:
-            st.metric("Median Bequest (Real $)", f"${np.median(bequest_array):,.2f}")
-        with col3:
-            st.metric("10th Percentile", f"${np.percentile(bequest_array, 10):,.2f}")
+
 
 def run_simulation(config):
     """Run the simulation with progress tracking"""
@@ -5295,7 +5555,8 @@ def run_simulation(config):
         'utility_ex_ante': None,
         'ce_annual': None,
         'ce_values_dict': None,
-        'total_utilities_dict': None
+        'total_utilities_dict': None,
+        'path_end_ages': None
     }
     
     try:
@@ -5308,8 +5569,11 @@ def run_simulation(config):
         if config.use_stochastic_mortality:
             qx = getattr(config, '_mortality_qx', None)
             n_ages = len(qx) if qx is not None else 0
-            st.info(f"**Stochastic mortality on:** Death each period is drawn from the SSA table ({n_ages} ages). Death Age is not used.")
-        
+            st.info(
+                f"**Stochastic mortality on:** Death each month uses the SSA table ({n_ages} ages). "
+                "Death Age is not used. After the run, **Path end ages** plots the ages where outer paths stopped "
+                "(death draw, broke portfolio, or age 120 horizon)."
+            )
 
         with st.expander("📋 Configuration Summary", expanded=False):
             st.json({
@@ -5399,8 +5663,8 @@ def run_simulation(config):
                 status_text.text(f"Age {int(age)} ({idx + 1}/{len(target_ages)}) | ETA: {eta_str}")
             else:
                 status_text.text(f"Calculating principal for age {int(age)}... ({idx + 1}/{len(target_ages)})")
-            
-                progress_bar.progress((idx + 1) / len(target_ages))
+
+            progress_bar.progress((idx + 1) / len(target_ages))
             
             if config.use_principal_deviation_threshold and previous_principal is not None:
                 max_change = previous_principal * config.principal_deviation_threshold
@@ -5421,10 +5685,14 @@ def run_simulation(config):
             principal_nominal = calculate_nominal_value(
                 principal_real, config.initial_age, age, mean_inflation_arithmetic)
             
+            # Principal table: match stochastic mortality horizon used in simulation.py.
+            use_stoch_tbl = getattr(config, 'use_stochastic_mortality', False)
+            death_horizon_tbl = 120 if use_stoch_tbl else config.death_age
+
             # Calculate actual withdrawal amount - use amortization if enabled
             if config.use_amortization:
                 # Calculate remaining years
-                remaining_years = config.death_age - age
+                remaining_years = death_horizon_tbl - age
                 
                 # Get expected return for amortization
                 expected_return = getattr(config, 'amortization_expected_return', None)
@@ -5470,7 +5738,7 @@ def run_simulation(config):
                 'age': age,
                 'principal_real': principal_real,
                 'principal_nominal': principal_nominal,
-                'spending_real': config.spending_real,
+                'spending_real': annual_withdrawal_real if config.use_amortization else config.spending_real,
                 'spending_nominal': nominal_spending,
                 'net_withdrawal_real': net_withdrawal_real,
                 'net_withdrawal_nominal': net_withdrawal_nominal,
@@ -5535,7 +5803,8 @@ def run_simulation(config):
 
         (retirement_ages, ever_retired, detailed_simulations,
          final_bequest_nominal, final_bequest_real, consumption_streams,
-         amortization_stats_list, earnings_nominal_list, earnings_real_list) = run_accumulation_simulations(
+         amortization_stats_list, earnings_nominal_list, earnings_real_list,
+         path_end_ages) = run_accumulation_simulations(
             config, params, results['principal_lookup'], rng, bootstrap_data,
             progress_callback=update_accumulation_progress)
         
@@ -5552,6 +5821,7 @@ def run_simulation(config):
         results['amortization_stats_list'] = amortization_stats_list
         results['earnings_nominal_list'] = earnings_nominal_list
         results['earnings_real_list'] = earnings_real_list
+        results['path_end_ages'] = path_end_ages
         
 
         accum_progress_bar.empty()
