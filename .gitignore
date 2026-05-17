@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE / agent
+.vscode/
+.idea/
+.cursor/
+mp_debug.log
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files (uncomment if you want to ignore data)
+# data/*.csv
+# data/*.xlsx
+
+# Output files - these are generated and shouldn't be committed
+output/*.png
+output/*.pdf
+output/*.csv
+Lifecycle Outputs/
+
+# Build artifacts (compiled Cython modules)
+build/**/*.pyd
+build/**/*.exp
+build/**/*.lib
+build/**/*.obj
+build/temp.*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cython
+*.c
+*.html
+
+# Backups
+backups/
+
+# Temporary files
+*.tmp
+*.log
+
+# Profiling files (can be very large)
+*.prof
+*.pstats
+
