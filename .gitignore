@@ -73,3 +73,6 @@ backups/
 *.prof
 *.pstats
 
+# Local code scan / audit notes (not for version control)
+CODE_SCAN_SUMMARY.md
+
