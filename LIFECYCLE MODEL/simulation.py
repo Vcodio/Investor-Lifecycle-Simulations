@@ -586,7 +586,7 @@ def simulate_withdrawals(start_portfolio, start_age, rng_local, params_annual,
         try:
             import json
             # Use absolute path based on _parent_dir which is set at module level
-            debug_dir = os.path.join(_parent_dir, '.cursor')
+            debug_dir = os.path.join(_parent_dir, '.debug')
             os.makedirs(debug_dir, exist_ok=True)
             debug_file = os.path.join(debug_dir, 'amortization_debug.json')
             
@@ -612,7 +612,7 @@ def simulate_withdrawals(start_portfolio, start_age, rng_local, params_annual,
             import traceback
             # Also try to write error to a separate file
             try:
-                error_file = os.path.join(_parent_dir, '.cursor', 'debug_error.log')
+                error_file = os.path.join(_parent_dir, '.debug', 'debug_error.log')
                 with open(error_file, 'a', encoding='utf-8') as ef:
                     ef.write(f"Debug write error at end: {e}\n{traceback.format_exc()}\n\n")
             except:
@@ -1075,11 +1075,11 @@ except:
         t_check_end = time.perf_counter()
         try:
             import json
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_check_success_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:809', 'message': 'check_success_rate timing (single process)', 'data': {'duration_ms': (t_check_end - t_check_start) * 1000, 'num_nested_sims': num_nested_sims, 'num_workers': 1}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+                f.write(json.dumps({'id': 'log_check_success_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:809', 'message': 'check_success_rate timing (single process)', 'data': {'duration_ms': (t_check_end - t_check_start) * 1000, 'num_nested_sims': num_nested_sims, 'num_workers': 1}}) + '\n')
         except: pass
 
         return success_rate, combined_metrics
@@ -1105,11 +1105,11 @@ except:
         t_check_end = time.perf_counter()
         try:
             import json
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_check_success_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:864', 'message': 'check_success_rate timing (multiprocess)', 'data': {'duration_ms': (t_check_end - t_check_start) * 1000, 'num_nested_sims': num_nested_sims, 'num_workers': config.num_workers}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+                f.write(json.dumps({'id': 'log_check_success_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:864', 'message': 'check_success_rate timing (multiprocess)', 'data': {'duration_ms': (t_check_end - t_check_start) * 1000, 'num_nested_sims': num_nested_sims, 'num_workers': config.num_workers}}) + '\n')
         except: pass
 
         return success_rate, combined_metrics
@@ -1614,11 +1614,11 @@ def run_accumulation_simulations(config, params, principal_lookup, rng, bootstra
             er = np.asarray(result['earnings_real'])
             nz = int(np.sum(er <= 0))
             try:
-                _lp = os.path.join(_parent_dir, '.cursor', 'debug.log')
-                _d = {'len': len(er), 'min': float(np.min(er)), 'max': float(np.max(er)), 'mean': float(np.mean(er)), 'n_zeros': nz, 'first': float(er[0]), 'last': float(er[-1]), 'hypothesisId': 'H2_H4'}
+                _lp = os.path.join(_parent_dir, '.debug', 'debug.log')
+                _d = {'len': len(er), 'min': float(np.min(er)), 'max': float(np.max(er)), 'mean': float(np.mean(er)), 'n_zeros': nz, 'first': float(er[0]), 'last': float(er[-1])}
                 import json
                 with open(_lp, 'a', encoding='utf-8') as _f:
-                    _f.write(json.dumps({'id': 'earnings_path_sim', 'timestamp': time.time()*1000, 'location': 'simulation.py', 'message': 'earnings_real path stats', 'data': _d, 'runId': 'debug'}) + '\n')
+                    _f.write(json.dumps({'id': 'earnings_path_sim', 'timestamp': time.time()*1000, 'location': 'simulation.py', 'message': 'earnings_real path stats', 'data': _d}) + '\n')
             except Exception:
                 pass
 
@@ -1637,11 +1637,11 @@ def run_accumulation_simulations(config, params, principal_lookup, rng, bootstra
     t_accum_end = time.perf_counter()
     try:
         import json
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_accum_total_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:1307', 'message': 'run_accumulation_simulations total time', 'data': {'duration_ms': (t_accum_end - t_accum_start) * 1000, 'num_outer': config.num_outer}, 'sessionId': 'debug-session', 'runId': 'profile', 'hypothesisId': 'PERF'}) + '\n')
+            f.write(json.dumps({'id': 'log_accum_total_time', 'timestamp': time.time() * 1000, 'location': 'simulation.py:1307', 'message': 'run_accumulation_simulations total time', 'data': {'duration_ms': (t_accum_end - t_accum_start) * 1000, 'num_outer': config.num_outer}}) + '\n')
     except: pass
 
     return (retirement_ages, ever_retired, detailed_simulations_to_export,

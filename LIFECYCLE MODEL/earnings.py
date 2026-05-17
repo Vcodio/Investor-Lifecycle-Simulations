@@ -112,7 +112,7 @@ def simulate_single_earnings_path(age_start, age_end, baseline_earnings, params,
         try:
             _lp = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                ".cursor",
+                ".debug",
                 "debug.log",
             )
             _d = {
@@ -122,7 +122,6 @@ def simulate_single_earnings_path(age_start, age_end, baseline_earnings, params,
                 "earnings_min": float(np.min(earnings)),
                 "earnings_max": float(np.max(earnings)),
                 "earnings_mean": float(np.mean(earnings)),
-                "hypothesisId": "H1_H4",
             }
             with open(_lp, "a", encoding="utf-8") as _f:
                 _f.write(
@@ -133,7 +132,6 @@ def simulate_single_earnings_path(age_start, age_end, baseline_earnings, params,
                             "location": "earnings.py:simulate_single_earnings_path",
                             "message": "first path stats",
                             "data": _d,
-                            "runId": "debug",
                         }
                     )
                     + "\n"

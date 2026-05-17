@@ -161,11 +161,11 @@ except ImportError as e:
         import json
         import time
         import os
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_import_error', 'timestamp': time.time() * 1000, 'location': 'app.py:106', 'message': 'ImportError during module loading', 'data': {'error': str(e), 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+            f.write(json.dumps({'id': 'log_import_error', 'timestamp': time.time() * 1000, 'location': 'app.py:106', 'message': 'ImportError during module loading', 'data': {'error': str(e), 'traceback': traceback.format_exc()}}) + '\n')
     except Exception as log_err: pass
 
 except Exception as e:
@@ -178,11 +178,11 @@ except Exception as e:
         import json
         import time
         import os
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_module_error', 'timestamp': time.time() * 1000, 'location': 'app.py:111', 'message': 'Exception during module loading', 'data': {'error': str(e), 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+            f.write(json.dumps({'id': 'log_module_error', 'timestamp': time.time() * 1000, 'location': 'app.py:111', 'message': 'Exception during module loading', 'data': {'error': str(e), 'traceback': traceback.format_exc()}}) + '\n')
     except Exception as log_err: pass
 
 
@@ -435,7 +435,7 @@ def create_config_from_sidebar():
                 config.amortization_expected_return = None if (amort_return_input == 0.0 or amort_return_input is None) else float(amort_return_input)
                 config.amortization_min_spending_threshold = st.slider("Min Spending Threshold (fraction of initial real spending)", min_value=0.0, max_value=1.0, value=config.amortization_min_spending_threshold, step=0.05, format="%.2f")
                 config.amortization_desired_bequest = st.number_input("Desired Bequest (Real $)", min_value=0.0, value=float(config.amortization_desired_bequest), step=1000.0, format="%.0f", help="Target portfolio value at death (real dollars). If 0, portfolio is consumed to zero.")
-                config.debug_amortization = st.checkbox("🔍 Debug Amortization (writes to .cursor/amortization_debug.json)", value=config.debug_amortization, help="Enable detailed debugging output for amortization calculations")
+                config.debug_amortization = st.checkbox("🔍 Debug Amortization (writes to .debug/amortization_debug.json)", value=config.debug_amortization, help="Enable detailed debugging output for amortization calculations")
 
     with st.expander("💾 Output Settings", expanded=False):
         config.generate_csv_summary = st.checkbox("Generate CSV Summary", value=config.generate_csv_summary)
@@ -1114,11 +1114,11 @@ def create_plot_log_earnings_dynamics(earnings_real_list, config):
     try:
         import time as _time
         import json as _json
-        _lp = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cursor', 'debug.log')
+        _lp = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
         _lens = [len(e) for e in valid_earnings[:5]]
-        _d = {'n_paths': len(valid_earnings), 'lengths_first5': _lens, 'initial_age': config.initial_age, 'hypothesisId': 'H3'}
+        _d = {'n_paths': len(valid_earnings), 'lengths_first5': _lens, 'initial_age': config.initial_age}
         with open(_lp, 'a', encoding='utf-8') as _f:
-            _f.write(_json.dumps({'id': 'earnings_dynamics_input', 'timestamp': _time.time()*1000, 'location': 'app.py:create_plot_log_earnings_dynamics', 'message': 'earnings_dynamics input', 'data': _d, 'runId': 'debug'}) + '\n')
+            _f.write(_json.dumps({'id': 'earnings_dynamics_input', 'timestamp': _time.time()*1000, 'location': 'app.py:create_plot_log_earnings_dynamics', 'message': 'earnings_dynamics input', 'data': _d}) + '\n')
     except Exception:
         pass
 
@@ -1154,14 +1154,14 @@ def create_plot_log_earnings_dynamics(earnings_real_list, config):
         try:
             import time as _time
             import json as _json
-            _lp = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cursor', 'debug.log')
+            _lp = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
             _idx0 = 0
             _idx10 = min(10, len(medians)-1) if len(medians) else 0
             _n0 = sum(1 for ep in valid_earnings if 0 < len(ep))
             _n10 = sum(1 for ep in valid_earnings if _idx10 < len(ep))
-            _d = {'max_length': max_length, 'n_ages_plot': len(ages_plot), 'at_age0_n': _n0, 'median0': float(medians[_idx0]) if _idx0 < len(medians) else None, 'p10_0': float(p10[_idx0]) if _idx0 < len(p10) else None, 'p90_0': float(p90[_idx0]) if _idx0 < len(p90) else None, 'at_age10_n': _n10, 'median10': float(medians[_idx10]) if _idx10 < len(medians) else None, 'any_nan': bool(np.any(np.isnan(medians))), 'hypothesisId': 'H3_H5'}
+            _d = {'max_length': max_length, 'n_ages_plot': len(ages_plot), 'at_age0_n': _n0, 'median0': float(medians[_idx0]) if _idx0 < len(medians) else None, 'p10_0': float(p10[_idx0]) if _idx0 < len(p10) else None, 'p90_0': float(p90[_idx0]) if _idx0 < len(p90) else None, 'at_age10_n': _n10, 'median10': float(medians[_idx10]) if _idx10 < len(medians) else None, 'any_nan': bool(np.any(np.isnan(medians)))}
             with open(_lp, 'a', encoding='utf-8') as _f:
-                _f.write(_json.dumps({'id': 'earnings_dynamics_percentiles', 'timestamp': _time.time()*1000, 'location': 'app.py:earnings_dynamics', 'message': 'percentiles computed', 'data': _d, 'runId': 'debug'}) + '\n')
+                _f.write(_json.dumps({'id': 'earnings_dynamics_percentiles', 'timestamp': _time.time()*1000, 'location': 'app.py:earnings_dynamics', 'message': 'percentiles computed', 'data': _d}) + '\n')
         except Exception:
             pass
 
@@ -2484,7 +2484,7 @@ def parameter_estimation_section(returns_data):
                                     regime_returns_sample = regime_returns
                             
 
-                            log_file = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                             import json
                             import time
                             from scipy import stats
@@ -2495,9 +2495,6 @@ def parameter_estimation_section(returns_data):
                                 emp_kurt = stats.kurtosis(regime_returns_sample, fisher=True) + 3
                                 log_entry = {
                                     "timestamp": int(time.time() * 1000),
-                                    "sessionId": "debug-session",
-                                    "runId": "pre-opt",
-                                    "hypothesisId": "A",
                                     "location": "app.py:1839",
                                     "message": "Before optimization call",
                                     "data": {
@@ -2626,9 +2623,6 @@ def parameter_estimation_section(returns_data):
                                         try:
                                             log_entry = {
                                                 "timestamp": int(time.time() * 1000),
-                                                "sessionId": "debug-session",
-                                                "runId": "post-opt-fail",
-                                                "hypothesisId": "B",
                                                 "location": "app.py:1893",
                                                 "message": "Optimization returned None",
                                                 "data": {
@@ -2953,17 +2947,17 @@ def compute_regime_stability(regime_labels, transition_matrix, returns_data, num
 
             t1_regime = time.time()
             try:
-                log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                 with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'id': 'perf_regime_features', 'timestamp': time.time() * 1000, 'location': 'app.py:1695', 'message': f'Regime {i} feature calculation', 'data': {'regime': i, 'duration_sec': t1_regime - t0_regime, 'regime_length': len(regime_returns)}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'D'}) + '\n')
+                    f.write(json.dumps({'id': 'perf_regime_features', 'timestamp': time.time() * 1000, 'location': 'app.py:1695', 'message': f'Regime {i} feature calculation', 'data': {'regime': i, 'duration_sec': t1_regime - t0_regime, 'regime_length': len(regime_returns)}}) + '\n')
             except: pass
 
 
         t1_features = time.time()
         try:
-            log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+            log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'perf_features_total', 'timestamp': time.time() * 1000, 'location': 'app.py:1726', 'message': 'Total feature calculation timing', 'data': {'duration_sec': t1_features - t0_features, 'num_regimes': num_regimes}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'D'}) + '\n')
+                f.write(json.dumps({'id': 'perf_features_total', 'timestamp': time.time() * 1000, 'location': 'app.py:1726', 'message': 'Total feature calculation timing', 'data': {'duration_sec': t1_features - t0_features, 'num_regimes': num_regimes}}) + '\n')
         except: pass
 
         
@@ -3062,9 +3056,9 @@ def display_hmm_results(hmm_results):
 
     t1_stability = time.time()
     try:
-        log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+        log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'perf_stability', 'timestamp': time.time() * 1000, 'location': 'app.py:1784', 'message': 'compute_regime_stability timing', 'data': {'duration_sec': t1_stability - t0_stability, 'num_regimes': num_regimes, 'data_length': len(regime_labels)}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'A'}) + '\n')
+            f.write(json.dumps({'id': 'perf_stability', 'timestamp': time.time() * 1000, 'location': 'app.py:1784', 'message': 'compute_regime_stability timing', 'data': {'duration_sec': t1_stability - t0_stability, 'num_regimes': num_regimes, 'data_length': len(regime_labels)}}) + '\n')
     except: pass
 
     
@@ -3765,10 +3759,10 @@ def display_hmm_results(hmm_results):
             
 
                 try:
-                    log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                     import json, time
                     with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'id': 'debug_regime_colors_set', 'timestamp': time.time() * 1000, 'location': 'app.py:2259', 'message': 'Regime colors set', 'data': {'num_regimes': num_regimes, 'regime_colors': regime_colors}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'D'}) + '\n')
+                        f.write(json.dumps({'id': 'debug_regime_colors_set', 'timestamp': time.time() * 1000, 'location': 'app.py:2259', 'message': 'Regime colors set', 'data': {'num_regimes': num_regimes, 'regime_colors': regime_colors}}) + '\n')
                 except: pass
 
             
@@ -3784,9 +3778,9 @@ def display_hmm_results(hmm_results):
 
                 t1_data_prep = time.time()
                 try:
-                    log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                     with open(log_path, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps({'id': 'perf_data_prep_total', 'timestamp': time.time() * 1000, 'location': 'app.py:1998', 'message': 'Total data preparation', 'data': {'duration_sec': t1_data_prep - t0_data_prep, 'data_length': len(returns_data)}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'B'}) + '\n')
+                        f.write(json.dumps({'id': 'perf_data_prep_total', 'timestamp': time.time() * 1000, 'location': 'app.py:1998', 'message': 'Total data preparation', 'data': {'duration_sec': t1_data_prep - t0_data_prep, 'data_length': len(returns_data)}}) + '\n')
                 except: pass
 
         
@@ -3809,9 +3803,9 @@ def display_hmm_results(hmm_results):
 
             t1_plot_create = time.time()
             try:
-                log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                 with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'id': 'perf_plot_create', 'timestamp': time.time() * 1000, 'location': 'app.py:2013', 'message': 'Plotly figure creation', 'data': {'duration_sec': t1_plot_create - t0_plot_create, 'use_regime_colors': use_regime_colors, 'num_segments': len(cached_data['segment_starts'])}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'D'}) + '\n')
+                    f.write(json.dumps({'id': 'perf_plot_create', 'timestamp': time.time() * 1000, 'location': 'app.py:2013', 'message': 'Plotly figure creation', 'data': {'duration_sec': t1_plot_create - t0_plot_create, 'use_regime_colors': use_regime_colors, 'num_segments': len(cached_data['segment_starts'])}}) + '\n')
             except: pass
 
         
@@ -3823,9 +3817,9 @@ def display_hmm_results(hmm_results):
 
             t1_render = time.time()
             try:
-                log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                 with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'id': 'perf_plot_render', 'timestamp': time.time() * 1000, 'location': 'app.py:2019', 'message': 'Plotly chart rendering', 'data': {'duration_sec': t1_render - t0_render}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'E'}) + '\n')
+                    f.write(json.dumps({'id': 'perf_plot_render', 'timestamp': time.time() * 1000, 'location': 'app.py:2019', 'message': 'Plotly chart rendering', 'data': {'duration_sec': t1_render - t0_render}}) + '\n')
             except: pass
 
         
@@ -3842,9 +3836,9 @@ def display_hmm_results(hmm_results):
 
             t1_viz_section = time.time()
             try:
-                log_path = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor\debug.log'
+                log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                 with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({'id': 'perf_viz_section_total', 'timestamp': time.time() * 1000, 'location': 'app.py:2026', 'message': 'Total visualization section', 'data': {'duration_sec': t1_viz_section - t0_viz_section}, 'sessionId': 'debug-session', 'runId': 'perf-1', 'hypothesisId': 'ALL'}) + '\n')
+                    f.write(json.dumps({'id': 'perf_viz_section_total', 'timestamp': time.time() * 1000, 'location': 'app.py:2026', 'message': 'Total visualization section', 'data': {'duration_sec': t1_viz_section - t0_viz_section}}) + '\n')
             except: pass
 
         
@@ -4318,7 +4312,7 @@ def display_param_estimation_results(results, returns_data):
     st.subheader("📋 Results")
 
     # Debug: show recent Bates-related log entries so we can see data prep, fit, and viz under the hood
-    _debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cursor', 'debug.log')
+    _debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
     if os.path.exists(_debug_log_path):
         try:
             with open(_debug_log_path, 'r', encoding='utf-8') as _f:
@@ -4523,18 +4517,16 @@ def display_param_estimation_results(results, returns_data):
                         'n_obs': info.get('n_obs', 0)
                     })
                 
-                # #region agent log
                 try:
                     import json
                     import time
-                    log_path_debug = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cursor', 'debug.log')
+                    log_path_debug = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug', 'debug.log')
                     os.makedirs(os.path.dirname(log_path_debug), exist_ok=True)
                     with open(log_path_debug, 'a', encoding='utf-8') as f:
                         df_grouped = df.groupby('regime')
                         regimes_in_df = {float(k): len(v) for k, v in df_grouped}
-                        f.write(json.dumps({'id': 'log_df_created', 'timestamp': time.time() * 1000, 'location': 'app.py:display_param_estimation_results', 'message': 'DataFrame created', 'data': {'df_shape': list(df.shape), 'df_columns': list(df.columns), 'regime_counts': regimes_in_df, 'regime_keys_types': [type(k).__name__ for k in list(regimes_in_df.keys())[:5]], 'returns_min': float(np.min(df['returns'])), 'returns_max': float(np.max(df['returns'])), 'returns_mean': float(np.mean(df['returns']))}, 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+                        f.write(json.dumps({'id': 'log_df_created', 'timestamp': time.time() * 1000, 'location': 'app.py:display_param_estimation_results', 'message': 'DataFrame created', 'data': {'df_shape': list(df.shape), 'df_columns': list(df.columns), 'regime_counts': regimes_in_df, 'regime_keys_types': [type(k).__name__ for k in list(regimes_in_df.keys())[:5]], 'returns_min': float(np.min(df['returns'])), 'returns_max': float(np.max(df['returns'])), 'returns_mean': float(np.mean(df['returns']))}}) + '\n')
                 except Exception as log_err: pass
-                # #endregion
                 
                 # results_list is already created above by replicating the standalone script's fitting loop
                 
@@ -4625,7 +4617,7 @@ def display_param_estimation_results(results, returns_data):
                         st.write("**📊 Visualizations:**")
                         try:
                             with open(log_path, 'a', encoding='utf-8') as f:
-                                f.write(json.dumps({'id': 'log_check_png_files', 'timestamp': time.time() * 1000, 'location': 'app.py:display_param_estimation_results', 'message': 'Checking PNG files', 'data': {'output_dir': output_dir, 'png_files': png_files}, 'runId': 'initial', 'hypothesisId': 'F'}) + '\n')
+                                f.write(json.dumps({'id': 'log_check_png_files', 'timestamp': time.time() * 1000, 'location': 'app.py:display_param_estimation_results', 'message': 'Checking PNG files', 'data': {'output_dir': output_dir, 'png_files': png_files}}) + '\n')
                         except Exception as log_err: pass
                         for png_file in png_files:
                             png_path = os.path.join(output_dir, png_file)
@@ -5278,11 +5270,11 @@ def run_simulation(config):
         import json
         import time
         import os
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_run_sim_start', 'timestamp': time.time() * 1000, 'location': 'app.py:505', 'message': 'run_simulation started', 'data': {'config_validated': True}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
+            f.write(json.dumps({'id': 'log_run_sim_start', 'timestamp': time.time() * 1000, 'location': 'app.py:505', 'message': 'run_simulation started', 'data': {'config_validated': True}}) + '\n')
     except Exception as log_err: pass
 
     st.session_state.config = config
@@ -5607,11 +5599,11 @@ def run_simulation(config):
             import traceback
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_config_error', 'timestamp': time.time() * 1000, 'location': 'app.py:729', 'message': 'Configuration validation error', 'data': {'error': str(e), 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'C'}) + '\n')
+                f.write(json.dumps({'id': 'log_config_error', 'timestamp': time.time() * 1000, 'location': 'app.py:729', 'message': 'Configuration validation error', 'data': {'error': str(e), 'traceback': traceback.format_exc()}}) + '\n')
         except Exception as log_err: pass
 
     except FileNotFoundError as e:
@@ -5624,11 +5616,11 @@ def run_simulation(config):
             import traceback
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_file_not_found', 'timestamp': time.time() * 1000, 'location': 'app.py:733', 'message': 'FileNotFoundError', 'data': {'error': str(e), 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+                f.write(json.dumps({'id': 'log_file_not_found', 'timestamp': time.time() * 1000, 'location': 'app.py:733', 'message': 'FileNotFoundError', 'data': {'error': str(e), 'traceback': traceback.format_exc()}}) + '\n')
         except Exception as log_err: pass
 
     except Exception as e:
@@ -5643,14 +5635,13 @@ def run_simulation(config):
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
 
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_sim_error', 'timestamp': time.time() * 1000, 'location': 'app.py:737', 'message': 'Exception during simulation', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'D'}) + '\n')
+                f.write(json.dumps({'id': 'log_sim_error', 'timestamp': time.time() * 1000, 'location': 'app.py:737', 'message': 'Exception during simulation', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}}) + '\n')
         except Exception as log_err: pass
-        # #endregion
 
 # Call main() for Streamlit (Streamlit runs the entire script)
 main()

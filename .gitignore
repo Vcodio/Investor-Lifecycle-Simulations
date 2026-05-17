@@ -25,10 +25,10 @@ venv/
 ENV/
 env/
 
-# IDE / agent
+# IDE
 .vscode/
 .idea/
-.cursor/
+.debug/
 mp_debug.log
 *.swp
 *.swo

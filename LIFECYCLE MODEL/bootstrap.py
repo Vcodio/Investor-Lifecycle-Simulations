@@ -274,11 +274,11 @@ def load_bootstrap_data(config):
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_bootstrap_load_start', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:254', 'message': 'Starting load_and_convert_to_monthly_returns', 'data': {'csv_path': config.bootstrap_csv_path, 'portfolio_col': config.portfolio_column_name, 'inflation_col': config.inflation_column_name}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+                f.write(json.dumps({'id': 'log_bootstrap_load_start', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:254', 'message': 'Starting load_and_convert_to_monthly_returns', 'data': {'csv_path': config.bootstrap_csv_path, 'portfolio_col': config.portfolio_column_name, 'inflation_col': config.inflation_column_name}}) + '\n')
         except Exception as log_err: pass
 
         monthly_returns, monthly_inflation, _ = load_and_convert_to_monthly_returns(
@@ -293,11 +293,11 @@ def load_bootstrap_data(config):
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_bootstrap_load_success', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:261', 'message': 'Bootstrap data loaded successfully', 'data': {'returns_len': len(monthly_returns), 'inflation_len': len(monthly_inflation)}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+                f.write(json.dumps({'id': 'log_bootstrap_load_success', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:261', 'message': 'Bootstrap data loaded successfully', 'data': {'returns_len': len(monthly_returns), 'inflation_len': len(monthly_inflation)}}) + '\n')
         except Exception as log_err: pass
 
         return _bootstrap_data_cache
@@ -310,11 +310,11 @@ def load_bootstrap_data(config):
             import time
             import os
             import traceback
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_bootstrap_load_error', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:264', 'message': 'Exception in load_bootstrap_data', 'data': {'error': str(e), 'error_type': type(e).__name__, 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'B'}) + '\n')
+                f.write(json.dumps({'id': 'log_bootstrap_load_error', 'timestamp': time.time() * 1000, 'location': 'bootstrap.py:264', 'message': 'Exception in load_bootstrap_data', 'data': {'error': str(e), 'error_type': type(e).__name__, 'traceback': traceback.format_exc()}}) + '\n')
         except Exception as log_err: pass
 
         raise

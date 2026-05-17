@@ -323,7 +323,7 @@ def simulate_regime_switching_bates(params_dict, transition_matrix, regime_ids, 
     
     # Crisis regime for logging (always; crisis_regime may be None when stress_variance_on_crisis_entry is False)
     crisis_regime_for_log = max(regime_ids, key=lambda r: params_dict[r][IDX['theta']])
-    _debug_log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.cursor', 'debug.log')
+    _debug_log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.debug', 'debug.log')
     _entered_crisis_logged = 0
     # Main simulation
     for t in range(n_periods):

@@ -28,11 +28,11 @@ if __name__ == "__main__":
         import json
         import time
         import os
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_run_entry', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:25', 'message': 'run_simulation.py entry point', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'E'}) + '\n')
+            f.write(json.dumps({'id': 'log_run_entry', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:25', 'message': 'run_simulation.py entry point', 'data': {}}) + '\n')
     except Exception as log_err: pass
 
 
@@ -97,11 +97,11 @@ if __name__ == "__main__":
         import json
         import time
         import os
-        log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'debug.log')
         with open(log_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'id': 'log_before_module_load', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:82', 'message': 'Starting to load modules', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+            f.write(json.dumps({'id': 'log_before_module_load', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:82', 'message': 'Starting to load modules', 'data': {}}) + '\n')
     except Exception as log_err: pass
 
     try:
@@ -111,11 +111,11 @@ if __name__ == "__main__":
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_config_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:85', 'message': 'config module loaded', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+                f.write(json.dumps({'id': 'log_config_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:85', 'message': 'config module loaded', 'data': {}}) + '\n')
         except Exception as log_err: pass
 
         cython_module = load_module('cython_wrapper', 'cython_wrapper.py')
@@ -124,11 +124,11 @@ if __name__ == "__main__":
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_cython_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:87', 'message': 'cython_wrapper module loaded', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+                f.write(json.dumps({'id': 'log_cython_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:87', 'message': 'cython_wrapper module loaded', 'data': {}}) + '\n')
         except Exception as log_err: pass
 
         bootstrap_module = load_module('bootstrap', 'bootstrap.py')
@@ -147,11 +147,11 @@ if __name__ == "__main__":
             import json
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_all_modules_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:98', 'message': 'All modules loaded successfully', 'data': {}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+                f.write(json.dumps({'id': 'log_all_modules_loaded', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:98', 'message': 'All modules loaded successfully', 'data': {}}) + '\n')
         except Exception as log_err: pass
 
     except Exception as module_err:
@@ -161,11 +161,11 @@ if __name__ == "__main__":
             import time
             import os
             import traceback
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_module_load_error', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:99', 'message': 'Exception loading modules', 'data': {'error': str(module_err), 'error_type': type(module_err).__name__, 'traceback': traceback.format_exc()}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'A'}) + '\n')
+                f.write(json.dumps({'id': 'log_module_load_error', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:99', 'message': 'Exception loading modules', 'data': {'error': str(module_err), 'error_type': type(module_err).__name__, 'traceback': traceback.format_exc()}}) + '\n')
         except Exception as log_err: pass
 
         raise
@@ -246,11 +246,11 @@ if __name__ == "__main__":
             import traceback
             import time
             import os
-            log_dir = r'd:\Finance\Scripting\Lifecycle-Retirement-Simulation-main\.cursor'
+            log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.debug')
             os.makedirs(log_dir, exist_ok=True)
             log_path = os.path.join(log_dir, 'debug.log')
             with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({'id': 'log_run_error', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:107', 'message': 'Exception calling main()', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}, 'sessionId': 'debug-session', 'runId': 'initial', 'hypothesisId': 'D'}) + '\n')
+                f.write(json.dumps({'id': 'log_run_error', 'timestamp': time.time() * 1000, 'location': 'run_simulation.py:107', 'message': 'Exception calling main()', 'data': {'error': str(e), 'traceback': traceback.format_exc(), 'error_type': type(e).__name__}}) + '\n')
         except Exception as log_err: pass
 
         raise
